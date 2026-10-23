@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Features } from '../src/engine/analysis';
-import { mapPitch, mapVelocity, regionNotes, sourceValue, transposed } from '../src/engine/mapping';
-import { inScale, nearestInScale, noteName, scaleNotes, SCALES } from '../src/engine/scales';
+import { mapPitch, mapVelocity, regionNotes, sourceValue } from '../src/engine/mapping';
+import { inScale, noteName, quantiseToScale, scaleNotes, SCALES } from '../src/engine/scales';
 import { defaultPatch, defaultRegion } from '../src/engine/types';
 
 const feat = (o: Partial<Features>): Features => ({ lum: 0.5, sat: 0, hue: 0, alpha: 1, edge: 0, r: 0, g: 0, b: 0, index: 0, ...o });
@@ -25,7 +25,7 @@ describe('scales', () => {
   it('names notes and finds the nearest scale note', () => {
     expect(noteName(60)).toBe('C4');
     expect(noteName(69)).toBe('A4');
-    expect(nearestInScale('major', 0, 61)).toBe(60);
+    expect(quantiseToScale(61, 'major', 0)).toBe(60);
     expect(inScale('dorian', 2, 71)).toBe(true);
   });
 });
@@ -89,19 +89,14 @@ describe('mapping', () => {
     expect(mapVelocity({ ...r, velMin: 1, velMax: 1 }, 0.5)).toBe(1);
   });
 
-  it('transposes and clamps to MIDI', () => {
-    const r = { ...defaultRegion(0), transpose: 5, octave: -1 };
-    expect(transposed(r, 60)).toBe(53);
-    expect(transposed({ ...r, transpose: 24, octave: 3 }, 120)).toBe(127);
-    expect(transposed({ ...r, transpose: -24, octave: -3 }, 10)).toBe(0);
-  });
-
-  it('a region uses the global scale or its own', () => {
+  it('a region plays the notes of the global scale between LOW and HIGH', () => {
     const p = defaultPatch();
     const r = { ...p.regions[0]!, low: 60, high: 72 };
     p.scale = 'major';
     p.root = 0;
-    expect(regionNotes(p, { ...r, globalScale: true })).toEqual([60, 62, 64, 65, 67, 69, 71, 72]);
-    expect(regionNotes(p, { ...r, globalScale: false, scale: 'wholeTone', root: 1 })).toEqual([61, 63, 65, 67, 69, 71]);
+    expect(regionNotes(p, r)).toEqual([60, 62, 64, 65, 67, 69, 71, 72]);
+    p.scale = 'wholeTone';
+    p.root = 1;
+    expect(regionNotes(p, r)).toEqual([61, 63, 65, 67, 69, 71]);
   });
 });

@@ -280,6 +280,8 @@ export interface SelOpts<T> {
   tip?: string;
   /** a fixed caption instead of the current value (a menu button) */
   caption?: string;
+  /** a shorter text for the closed selector (the list keeps the full labels) */
+  shown?: (value: T) => string;
   /** accessible name */
   label?: string;
   disabled?: () => boolean;
@@ -398,7 +400,7 @@ export class Sel<T> {
   update(): void {
     const v = this.o.get();
     const it = this.o.items().find((x) => x.value === v);
-    const t = this.o.caption ?? it?.label ?? '-';
+    const t = this.o.caption ?? (it && this.o.shown ? this.o.shown(it.value) : it?.label) ?? '-';
     if (this.textEl.textContent !== t) this.textEl.textContent = t;
     this.el.classList.toggle('disabled', !!this.o.disabled?.());
   }

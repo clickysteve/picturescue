@@ -269,7 +269,7 @@ describe('performance: musical controls', () => {
   });
 
   it('notes stay in the scale and the velocity range', () => {
-    const p = solo({ mode: 'melodic', trigger: 'every', density: 1, velMin: 30, velMax: 60, globalScale: true, low: 40, high: 90, transpose: 0, octave: 0 }, { scale: 'phrygian', root: 4 });
+    const p = solo({ mode: 'melodic', trigger: 'every', density: 1, velMin: 30, velMax: 60, low: 40, high: 90, transpose: 0, octave: 0 }, { scale: 'phrygian', root: 4 });
     for (const e of ons(renderPerformance(p, ramp(), PPQ * 8))) {
       expect(inScale('phrygian', 4, e.note)).toBe(true);
       expect(e.note).toBeGreaterThanOrEqual(40);

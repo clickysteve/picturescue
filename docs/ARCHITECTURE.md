@@ -25,7 +25,7 @@ widgets, Vitest for unit tests, a Playwright browser test, GitHub Pages for host
 | Pixel analysis | `src/engine/analysis.ts` | Pure. Box-filter downsampling (our own, so browsers' scaling never changes the music), brightness, HSV hue and saturation, alpha, Sobel edges, a 16-colour ST palette (median cut, 512-colour snapping), summed-area tables for O(1) rectangle averages, analysis views. |
 | Region geometry | `src/engine/regions.ts` | Normalised coordinates, presets, move / resize / hit testing. |
 | Scanning | `src/engine/scan.ts` | Pure path generators for each scan mode, pass length, offset, wrapping. |
-| Mapping | `src/engine/mapping.ts`, `src/engine/scales.ts` | Measurement → value → note in a scale range, velocity, CC; mapping presets. |
+| Mapping and pitch | `src/engine/mapping.ts`, `src/engine/scales.ts` | Measurement → value → note in the global scale's range, velocity, CC; mapping presets; **the one final pitch stage** (`resolvePitch`); scale tables, quantiser, `midiToHz`. |
 | Performance | `src/engine/performance.ts` | The engine: a tick-based discrete-event simulation of four regions and six interpretation modes. |
 | Note safety | `src/engine/notegate.ts` | Holder counting per channel and note; shared by MIDI output and file export. |
 | MIDI files | `src/engine/smf.ts` | Format-1 writer (tempo map, one track per region), a small reader for tests. |
@@ -93,15 +93,45 @@ transport. RESTART starts every scan on the next beat.
 | DRONE | root and fifth on degrees I, IV, V or VI; held (extended step by step) until the cell's colour index or degree changes and at least 8 steps have passed |
 | CHAOTIC | seeded jumps of the scan cursor; pitch from a mix of hue, brightness and edges; octave leaps; random gates; occasional ratchets |
 
+## Pitch pipeline
+
+There is **one** scale and root (`Patch.scale`, `Patch.root`), shared by all four regions; a region
+has only its own LOW / HIGH, TRANSPOSE and OCTAVE. Every note passes through the same stages, in
+`mapping.ts`, used by the live transport, the exporter and (by way of the events) the internal
+sounds:
+
+```
+cell measurements ─▶ pitch source value (0..1) ─▶ mode picks a note from the in-range scale notes
+   ─▶ shift: + TRANSPOSE + 12·OCTAVE ─▶ quantise to the nearest global-scale note
+   ─▶ fold into LOW..HIGH by whole octaves ─▶ MIDI note ─▶ MIDI out / file / synth (440·2^((n−69)/12))
+```
+
+* **Quantise** (`quantiseToScale`): nearest scale note; an exact tie goes in the direction of the
+  shift (up for a positive shift, down for a negative one), and toward middle C when there is no
+  shift, so mirrored shifts give mirrored results and no rule favours one direction.
+* **Fold** (`foldIntoRange`): whole octaves keep the note in the scale. A range under an octave
+  without the note takes the in-range scale note of nearest pitch class (ties: nearer the middle).
+  There is deliberately no clamp, which used to pile every out-of-range note onto one boundary
+  note.
+* A range with no scale note at all is the only case where a note lies outside it: the nearest
+  scale note is played (and the REGION window says so). No invalid MIDI note is ever produced.
+* The per-region setup (scale notes in range, shift) is cached per region and rebuilt only when the
+  scale, root, range or shift changes, so the scheduler allocates nothing per step.
+
+Tests assert the invariant (every note in the global scale and range, whatever the mode,
+transposition, octave, range, tie rule or picture) for the six scales in the brief plus all twelve.
+
 ## Patch format
 
 `*.picturescue.json`: `{ format: "picturescue-patch", version: 1, name, bpm, stepsPerBeat, swing,
-loop, seed, seedText, scale, root, analysisSize, image, regions[4] }`. `image` is
+loop, seed, seedText, scale, root, analysisSize, image, regions[4] }` (format version 2). `image` is
 `{kind: "demo", id}`, `{kind: "embedded", encoding: "rgba-delta-deflate", width, height, data}`
 (RGBA planes, each row delta-filtered, deflated with `CompressionStream`, base64) or
 `{kind: "none"}`; `encoding: "dataurl"` also accepts an ordinary image data URL. Loading fills
 missing fields with defaults and repairs invalid ones; a newer version number is refused with a
-message. Pictures are at most 640 px, so a patch is typically 10 KB to 1 MB.
+message. Version 1 patches (which could carry a `scale`, `root` and `globalScale` in each region)
+open normally: the patch's global scale and root are kept, the region overrides are ignored and are
+not written again. A patch without a global scale gets C minor pentatonic. Pictures are at most 640 px, so a patch is typically 10 KB to 1 MB.
 
 Preferences (MIDI ports, clock, audio, volume, view, locks, export length) and palettes live in
 `localStorage` and are never part of a patch. The working patch is autosaved there too (without

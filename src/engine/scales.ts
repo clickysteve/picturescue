@@ -47,23 +47,48 @@ export function inScale(scaleId: string, root: number, pitch: number): boolean {
   return scaleById(scaleId).steps.includes(pc);
 }
 
-/** The MIDI notes of a scale from `low` to `high` inclusive (ascending). Never empty: a range
- * containing no scale note gives the scale note nearest to its middle. */
-export function scaleNotes(scaleId: string, root: number, low: number, high: number): number[] {
+/** Equal-tempered frequency of a MIDI note: 440 Hz at 69 (A4), so 60 is middle C (261.63 Hz). */
+export function midiToHz(note: number): number {
+  return 440 * Math.pow(2, (note - 69) / 12);
+}
+
+/**
+ * The scale note nearest to a pitch (any integer, including outside 0..127 unless `min` / `max`
+ * bound it). A pitch already in the scale is returned as it is. When two scale notes are equally
+ * near, the tie goes in the direction of travel: up for `dir > 0` (the pitch was shifted up),
+ * down for `dir < 0`, and for `dir = 0` toward middle C. So shifting a contour up never lands
+ * lower than shifting it down, and no tie rule leans one way overall.
+ */
+export function quantiseToScale(pitch: number, scaleId: string, root: number, dir = 0, min = -Infinity, max = Infinity): number {
+  const p = Math.round(pitch);
+  const ok = (n: number) => n >= min && n <= max && inScale(scaleId, root, n);
+  if (ok(p)) return p;
+  for (let d = 1; d <= 12; d++) {
+    const lo = ok(p - d);
+    const hi = ok(p + d);
+    if (lo && hi) return dir > 0 ? p + d : dir < 0 ? p - d : p < 60 ? p + d : p - d;
+    if (lo) return p - d;
+    if (hi) return p + d;
+  }
+  return Math.max(min, Math.min(max, p));
+}
+
+/** The scale notes inside [low, high] (inclusive, either order, limited to 0..127), ascending. May be empty. */
+export function scaleNotesStrict(scaleId: string, root: number, low: number, high: number): number[] {
   const lo = Math.max(0, Math.min(127, Math.round(Math.min(low, high))));
   const hi = Math.max(0, Math.min(127, Math.round(Math.max(low, high))));
   const out: number[] = [];
   for (let p = lo; p <= hi; p++) if (inScale(scaleId, root, p)) out.push(p);
-  if (!out.length) out.push(nearestInScale(scaleId, root, (lo + hi) / 2));
   return out;
 }
 
-/** The scale note nearest to a pitch (ties go down). */
-export function nearestInScale(scaleId: string, root: number, pitch: number): number {
-  const p = Math.round(pitch);
-  for (let d = 0; d < 12; d++) {
-    if (p - d >= 0 && inScale(scaleId, root, p - d)) return p - d;
-    if (p + d <= 127 && inScale(scaleId, root, p + d)) return p + d;
-  }
-  return Math.max(0, Math.min(127, p));
+/**
+ * The MIDI notes of a scale from `low` to `high` inclusive (ascending). Never empty: a range
+ * with no scale note in it (a very narrow range between two scale notes) gives the one scale
+ * note nearest to its middle, just outside the range.
+ */
+export function scaleNotes(scaleId: string, root: number, low: number, high: number): number[] {
+  const out = scaleNotesStrict(scaleId, root, low, high);
+  if (out.length) return out;
+  return [quantiseToScale((Math.min(low, high) + Math.max(low, high)) / 2, scaleId, root, 0, 0, 127)];
 }

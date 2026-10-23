@@ -316,16 +316,22 @@ export function areaFeatures(an: Analysis, x: number, y: number, w: number, h: n
   const hy = rect(an.sums.hy, W, x0, y0, x1, y1) / a;
   let hue = (Math.atan2(hy, hx) * 180) / Math.PI;
   if (hue < 0) hue += 360;
+  const r = rect(an.sums.r, W, x0, y0, x1, y1) / a;
+  const g = rect(an.sums.g, W, x0, y0, x1, y1) / a;
+  const b = rect(an.sums.b, W, x0, y0, x1, y1) / a;
   return {
     lum: rect(an.sums.lum, W, x0, y0, x1, y1) / a,
     sat: rect(an.sums.sat, W, x0, y0, x1, y1) / a,
     hue,
     alpha: a / count,
     edge,
-    r: rect(an.sums.r, W, x0, y0, x1, y1) / a,
-    g: rect(an.sums.g, W, x0, y0, x1, y1) / a,
-    b: rect(an.sums.b, W, x0, y0, x1, y1) / a,
-    index: an.index[cy * an.w + cx]!,
+    r,
+    g,
+    b,
+    // ST COLOUR: a single pixel is its own palette colour; a larger cell is the palette colour
+    // nearest its AVERAGE colour (not whichever pixel sits in its middle), so a textured area
+    // plays one steady note instead of flickering between its pixels
+    index: count === 1 ? an.index[y0 * an.w + x0]! : nearestIndex(an.palette, r, g, b),
   };
 }
 

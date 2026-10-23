@@ -76,15 +76,11 @@ function randomRegion(r: RegionSettings, i: number, rng: Rng, locks: Locks, wild
     r.high = Math.min(120, low + span);
   }
   if (!locks.rates) r.rate = rng.chance(0.55) ? 2 : rng.pick([0, 1, 1, 3]);
-  if (!locks.scales && !r.globalScale) {
-    r.scale = rng.pick(SCALES.filter((s) => s.id !== 'chromatic')).id;
-    r.root = rng.int(12);
-  }
 }
 
 /**
- * Randomise a patch in place from a seed. WILDCARD also draws the global scale, tempo-free
- * settings (swing) and lets regions break away from the global scale.
+ * Randomise a patch in place from a seed. WILDCARD also draws the one global scale and root
+ * (unless SCALE / ROOT is locked) and the swing.
  */
 export function randomisePatch(p: Patch, seed: number, locks: Locks = noLocks(), wild = false): void {
   const rng = stream(seed, wild ? 'wildcard' : 'randomise');
@@ -94,7 +90,6 @@ export function randomisePatch(p: Patch, seed: number, locks: Locks = noLocks(),
   }
   if (wild && !locks.rates) p.swing = rng.chance(0.35) ? Math.round(rng.range(0.05, 0.3) * 100) / 100 : 0;
   p.regions.forEach((r, i) => {
-    if (wild && !locks.scales) r.globalScale = rng.chance(0.75);
     randomRegion(r, i, stream(seed, `${wild ? 'wild' : 'rnd'}-region-${i}`), locks, wild);
   });
 }

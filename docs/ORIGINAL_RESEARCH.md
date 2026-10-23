@@ -96,11 +96,13 @@ Music itself.
   displayed a picture through 16 colour registers, so the natural reading is that each of the 16
   indices played its own pitch. PICTURESCUE's **ST COLOUR** measurement rebuilds this for any
   picture: a 16-colour palette is made by median cut, snapped to the ST's 512-colour space
-  (3 bits per channel), sorted darkest first, and each index maps to its own scale note.
+  (3 bits per channel), sorted darkest first, and each index gets its own step up the scale (darkest lowest).
   *(Interpretation.)*
 * **"Scale" per track** is read as the area's notes being chosen from a musical scale; a
-  **transposition** shifts them. PICTURESCUE quantises by picking from the scale's notes within a
-  range, then transposes. *(Interpretation.)*
+  **transposition** shifts them. PICTURESCUE picks from the scale's notes within a range, shifts
+  them, then snaps the result back to the scale. *(Interpretation.)* PICTURESCUE departs from the
+  original here on purpose: the four regions share **one global scale and root** (the original
+  gave each track its own scale), so independent voices cannot clash harmonically.
 * **"Pixel by pixel, horizontally"** is kept as the **HORIZONTAL** scan (left to right, then the
   next row). A region's grid can be made as fine as the picture allows. *(Interpretation.)*
 * **Four areas playing together** on four channels, as four tracks of one piece.
@@ -115,7 +117,7 @@ output.
 
 * The **four-region model** is the original's and stays at the centre (with the engine and data
   model free to grow beyond four later).
-* Per-region **channel, transposition and scale** are original features and stay per region.
+* Per-region **channel and transposition** are original features and stay per region. The original's per-track **scale** was replaced by one global scale and root shared by all four regions (a deliberate departure, for coherence).
 * The **ST's 16-colour, 320-pixel world** survives as options: the 320 px analysis size is the
   default ("ST"), the ST COLOUR measurement and the ST LOW-RES demo picture.
 * Pixel-by-pixel horizontal scanning **alone** tends to produce note spam on photographs, which
@@ -125,7 +127,7 @@ output.
 ## Features worth preserving
 
 * Four independently configured areas (regions) of one picture.
-* Per-area MIDI channel, transposition and scale.
+* Per-area MIDI channel and transposition (the per-area scale became a single global scale).
 * Colour → note (ST COLOUR), with 16 colours.
 * Horizontal, pixel-by-pixel scanning (HORIZONTAL).
 * Being a *compositional aid*: the user decides the areas and rules; the picture supplies the

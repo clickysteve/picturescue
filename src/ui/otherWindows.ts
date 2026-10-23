@@ -179,9 +179,10 @@ export const HELP_HTML = `
 <p>1. Press <b>Space</b> (or ▶). The ST LOW-RES demo plays straight away.<br>2. Try another picture: <b>DEMOS</b>, <b>OPEN…</b>, or drop a file on the picture.<br>3. Click a region on the picture (or keys <b>1–4</b>), and change its <b>MODE</b> or <b>PRESET</b> in the REGION window.</p>
 <h3>The five ideas</h3>
 <p><b>IMAGE</b>: the source. It is kept at up to 640 pixels and measured at the ANALYSIS size (320 = the ST's low resolution). VIEW shows what the regions measure: brightness, hue, saturation, edges, or the 16 ST COLOURS.</p>
-<p><b>REGIONS</b>: four rectangles, each with its own channel, scale, range and behaviour. Drag to move, handles to resize, PLACE ALL… for layouts.</p>
+<p><b>REGIONS</b>: four rectangles, each with its own channel, sound, range, mapping and behaviour (all in the one global scale). Drag to move, handles to resize, PLACE ALL… for layouts.</p>
 <p><b>SCANNING</b>: each region is a grid (COLS × ROWS). Its cursor visits one cell per step: HORIZONTAL, VERTICAL, PING-PONG, SERPENTINE, RANDOM WALK, SPIRAL or MANUAL (drag the cursor yourself). RATE multiplies the transport's steps; LENGTH and OFFSET choose part of the path; REVERSE plays it backwards.</p>
-<p><b>MAPPING</b>: PITCH from brightness, hue, saturation or ST colour (each colour its own note); VELOCITY from saturation, brightness or edges; TRIGGER on every step, brightness above a threshold, edges, colour changes, or detail; a CC from a measurement. Notes always come from the scale, between LOW and HIGH.</p>
+<p><b>MAPPING</b>: PITCH from brightness, hue, saturation or ST colour (the 16-colour palette climbs the scale, darkest lowest); VELOCITY from saturation, brightness or edges; TRIGGER on every step, brightness above a threshold, edges, colour changes, or detail; a CC from a measurement.</p>
+<p><b>ONE SCALE</b>: the TRANSPORT's SCALE and ROOT are the only harmony: all four regions play in them, so they always fit together. Each region keeps its own range, channel, sound, mapping, rhythm and mode. Every note is made the same way: the mapping picks a pitch in the region's range; <b>TRANSP</b> (semitones) and <b>OCTAVE</b> shift it; the result is snapped to the nearest note of the scale (never off it) and folded back by octaves into <b>LOW</b>..<b>HIGH</b>.</p>
 <p><b>PERFORMANCE</b>: the MODE decides how a region plays: MELODIC, RHYTHMIC, AMBIENT, POINTILLIST, DRONE or CHAOTIC. DENSITY keeps the busiest steps; REST adds seeded silences; SPACING keeps notes apart; GATE is the note length; REPEAT ties, re-strikes or skips a repeated note.</p>
 <h3>Seeds</h3>
 <p>Everything random (rests, walks, jumps, scattering) comes from the SEED: a number or any words. The same picture, patch and seed always play the same. VARIATION picks a new seed; RANDOMISE and WILDCARD change the settings (not the LOCKS, never MIDI or the picture).</p>
@@ -193,7 +194,7 @@ export const HELP_HTML = `
 export const ABOUT_HTML = `
 <p><b>PICTURESCUE</b> · Pictures make music.</p>
 <p>An experimental image-driven MIDI instrument inspired by <b>Picture Music</b>, Gareth Jones's Atari ST program (version 1.2), which turned 16-colour low-resolution pictures into MIDI by scanning four chosen areas horizontally, pixel by pixel, each with its own MIDI channel, transposition and scale.</p>
-<p>PICTURESCUE is a new, independent instrument (a clean-room implementation: none of the original's code, graphics or data is used). It keeps the four regions and the colour-to-note idea, and adds seven scan modes, six interpretation modes, image measurements, seeds, internal sounds, MIDI file export and recording.</p>
+<p>PICTURESCUE is a new, independent instrument (a clean-room implementation: none of the original's code, graphics or data is used). It keeps the four regions and the colour-to-note idea (but gives them one shared scale, so they always sound together), and adds seven scan modes, six interpretation modes, image measurements, seeds, internal sounds, MIDI file export and recording.</p>
 <p>It is not an AI image or music generator: every note comes from transparent, controllable rules applied to the picture.</p>
 <p>Part of the Slop Factory family (emmm, FEELERS, ANVIL, DOWNBEAT, SQUARED, FRAK.MC, The Breakery, The Good Bits). Built on Slop Factory Core.</p>`;
 

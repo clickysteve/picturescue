@@ -96,16 +96,12 @@ export interface RegionSettings {
   length: number;
   /** first step of the path */
   offset: number;
-  /** use the global scale and root instead of this region's own */
-  globalScale: boolean;
-  scale: string;
-  root: number;
-  /** note range (MIDI) before transposition */
+  /** playable range (MIDI notes): every note this region plays lies inside it (and in the global scale) */
   low: number;
   high: number;
-  /** semitones */
+  /** semitones: shifts the contour before it is quantised to the global scale */
   transpose: number;
-  /** octaves */
+  /** octaves: shifts the register by whole octaves (notes fold back into LOW..HIGH) */
   octave: number;
   velMin: number;
   velMax: number;
@@ -157,6 +153,7 @@ export interface Patch {
   seed: number;
   /** the text the seed was typed as (display only) */
   seedText: string;
+  /** THE scale and root (pitch class 0..11, C = 0) of the whole composition: every region plays in them */
   scale: string;
   root: number;
   analysisSize: number;
@@ -165,7 +162,12 @@ export interface Patch {
 }
 
 export const PATCH_FORMAT = 'picturescue-patch';
-export const PATCH_VERSION = 1;
+/**
+ * Format history. v1: each region could carry its own scale and root (`globalScale`, `scale`,
+ * `root`). v2: one global scale and root for all regions; those region fields no longer exist.
+ * v1 patches open in v2: their global scale and root are kept, region overrides are ignored.
+ */
+export const PATCH_VERSION = 2;
 
 export function defaultRegion(i: number): RegionSettings {
   const q = [
@@ -196,9 +198,6 @@ export function defaultRegion(i: number): RegionSettings {
     rate: [2, 2, 1, 2][i % 4]!,
     length: 0,
     offset: 0,
-    globalScale: true,
-    scale: 'minorPentatonic',
-    root: 9,
     low: [60, 36, 48, 72][i % 4]!,
     high: [84, 55, 72, 96][i % 4]!,
     transpose: 0,
@@ -230,7 +229,7 @@ export function defaultPatch(): Patch {
     seed: 1984,
     seedText: '1984',
     scale: 'minorPentatonic',
-    root: 9,
+    root: 0,
     analysisSize: 320,
     image: { kind: 'demo', id: 'st-lowres' },
     regions: Array.from({ length: REGION_COUNT }, (_, i) => defaultRegion(i)),
@@ -281,9 +280,6 @@ export function sanitiseRegion(v: unknown, i: number): RegionSettings {
     rate: num(o.rate, d.rate, 0, RATES.length - 1, true),
     length: num(o.length, d.length, 0, 4096, true),
     offset: num(o.offset, d.offset, 0, 4095, true),
-    globalScale: bool(o.globalScale, d.globalScale),
-    scale: scaleId(o.scale, d.scale),
-    root: num(o.root, d.root, 0, 11, true),
     low: Math.min(low, high),
     high: Math.max(low, high),
     transpose: num(o.transpose, d.transpose, -24, 24, true),

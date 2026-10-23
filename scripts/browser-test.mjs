@@ -189,6 +189,29 @@ try {
   check('chooses a MIDI output', (await app(() => window.picturescue.midi.portName)) === 'Fake Synth');
   await page.locator('.mwin[data-win="midi"] .close').click();
 
+  // ---- one global scale and root: exactly one selector each, none in the region panel
+  const regionLabels = await page.locator('.mwin[data-win="region"] [aria-label]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
+  const regionButtons = await page.locator('.mwin[data-win="region"] .btn, .mwin[data-win="region"] .msel-text').allTextContents();
+  check('the region panel has no SCALE, ROOT or GLOBAL control', !regionLabels.some((l) => /scale|root|global/i.test(l ?? '')) && !regionButtons.some((t) => /^(GLOBAL|SCALE|ROOT)$/.test(t.trim())), regionLabels.join(','));
+  check('exactly one global SCALE and one global ROOT selector, in the transport', (await page.locator('[aria-label="Global scale"]').count()) === 1 && (await page.locator('[aria-label="Global root"]').count()) === 1 && (await page.locator('.mwin[data-win="transport"] [aria-label="Global scale"]').count()) === 1);
+  const dflt = await app(() => [window.picturescue.patch.scale, window.picturescue.patch.root]);
+  check('the default is C minor pentatonic', dflt[0] === 'minorPentatonic' && dflt[1] === 0, JSON.stringify(dflt));
+  await page.locator('[aria-label="Global scale"]').click();
+  await page.locator('.msel-list .msel-item', { hasText: /^DORIAN$/ }).click();
+  await page.locator('[aria-label="Global root"]').click();
+  await page.locator('.msel-list .msel-item', { hasText: /^D$/ }).click();
+  const gs = await app(() => [window.picturescue.patch.scale, window.picturescue.patch.root]);
+  check('choosing D Dorian in the transport sets the global scale and root', gs[0] === 'dorian' && gs[1] === 2, JSON.stringify(gs));
+  const regionInfo = await page.locator('.mwin[data-win="region"] .label', { hasText: /IN RANGE|NO SCALE NOTE/ }).first().textContent();
+  check('the region panel shows the global scale', /^D DORIAN: \d+ NOTES IN RANGE$/.test(regionInfo.trim()), regionInfo);
+  // widen region 1 so its range holds notes of the new scale, and make every region play often
+  await app(() => {
+    for (const r of window.picturescue.patch.regions) Object.assign(r, { mode: 'melodic', trigger: 'every', density: 1, rest: 0, transpose: 0, octave: 0 });
+    Object.assign(window.picturescue.patch.regions[0], { low: 40, high: 70, transpose: 3, octave: 1 });
+    window.picturescue.changed('patch');
+  });
+  await app(() => window.__midi.splice(0));
+
   // ---- play with Space, watch the scan
   await page.mouse.click(5, 5); // focus the page, not a control
   await key('Escape');
@@ -208,6 +231,24 @@ try {
   const chans = new Set(ons.map((x) => (x.d[0] & 15) + 1));
   const expectCh = await app(() => window.picturescue.patch.regions.filter((r) => r.enabled && !r.mute).map((r) => r.channel));
   check('MIDI notes arrive on the regions’ channels', ons.length > 5 && [...chans].every((c) => expectCh.includes(c)), `${ons.length} notes on ${[...chans]}`);
+  const harmony = await app(() => {
+    const { patch } = window.picturescue;
+    const steps = { dorian: [0, 2, 3, 5, 7, 9, 10] }[patch.scale];
+    const byChannel = new Map(patch.regions.filter((r) => r.enabled && !r.mute).map((r, i) => [r.channel, r]));
+    const bad = [];
+    const regionsHeard = new Set();
+    let total = 0;
+    for (const m of window.__midi) {
+      if ((m.d[0] & 0xf0) !== 0x90 || m.d[2] === 0) continue;
+      total++;
+      const r = byChannel.get((m.d[0] & 15) + 1);
+      regionsHeard.add(m.d[0] & 15);
+      const n = m.d[1];
+      if (!steps.includes((((n - patch.root) % 12) + 12) % 12) || !r || n < Math.min(r.low, r.high) || n > Math.max(r.low, r.high)) bad.push(n);
+    }
+    return { total, bad, regions: regionsHeard.size };
+  });
+  check('every MIDI note is in D Dorian and inside its region’s LOW..HIGH (transposed, octave-shifted)', harmony.total > 20 && harmony.bad.length === 0 && harmony.regions === 4, JSON.stringify(harmony));
   check('the internal audio preview is running', await app(() => window.picturescue.audio.running));
   const levels = await page.evaluate(async () => {
     const out = {};
@@ -229,6 +270,28 @@ try {
     return out;
   });
   check('every preview sound makes sound and dies away after its release', Object.values(levels).every(([peak, tail]) => peak > 0.02 && peak < 1 && tail < 1e-4), JSON.stringify(levels));
+  const freqs = await page.evaluate(async () => {
+    const out = {};
+    for (const [sound, note, from, to] of [['sine', 60, 0.2, 0.8], ['sine', 69, 0.2, 0.8], ['sine', 81, 0.2, 0.8], ['perc', 69, 0.09, 0.15]]) {
+      const ctx = new OfflineAudioContext(1, 44100, 44100);
+      new window.picturescueSynth(sound).start(ctx, ctx.destination, { time: 0, pitch: note, velocity: 100 });
+      const d = (await ctx.startRendering()).getChannelData(0);
+      let n = 0;
+      let first = -1;
+      let last = -1;
+      for (let i = Math.round(from * 44100); i < Math.round(to * 44100); i++) {
+        if (d[i - 1] < 0 && d[i] >= 0) {
+          n++;
+          if (first < 0) first = i;
+          last = i;
+        }
+      }
+      out[`${sound}${note}`] = ((n - 1) * 44100) / (last - first);
+    }
+    return out;
+  });
+  const want = { sine60: 261.6256, sine69: 440, sine81: 880, perc69: 440 };
+  check('the synth sounds the equal-tempered frequency: MIDI 69 = 440 Hz, 60 = 261.6 Hz, 81 = 880 Hz, drum settles on its note', Object.entries(want).every(([k, f]) => Math.abs(freqs[k] / f - 1) < 0.005), JSON.stringify(freqs));
   const posTxt = await page.locator('.mwin[data-win="transport"] .box').first().textContent();
   check('bar . beat is shown', /^\d{4} \. [1-4]$/.test(posTxt.trim()), posTxt);
 

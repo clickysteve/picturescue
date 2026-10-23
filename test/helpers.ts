@@ -41,3 +41,18 @@ export function hues(w = 72, h = 16): Analysis {
     320,
   );
 }
+
+import { demoPixels } from '../src/engine/demos';
+
+const analyses = new Map<string, Analysis>();
+/** A demo picture's analysis (made once per test file). */
+export function demoAnalysis(id: string, size = 320): Analysis {
+  const key = `${id}@${size}`;
+  let a = analyses.get(key);
+  if (!a) {
+    const px = demoPixels(id)!;
+    a = analyse(px.data, px.w, px.h, size);
+    analyses.set(key, a);
+  }
+  return a;
+}

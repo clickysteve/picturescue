@@ -2,11 +2,17 @@
  * The preview sounds: five small Web Audio voices, so PICTURESCUE can be heard without a
  * synthesiser. Deliberately modest. Each implements Slop Factory Core's `Instrument`
  * interface, so Core's NotePlayer and Mixer handle polyphony, voice stealing and levels.
+ *
+ * Tuning: every voice's fundamental is the equal-tempered frequency of its MIDI note
+ * (`midiToHz`: 440 Hz at 69, so 60 is middle C). The only deliberate departures are layers:
+ * PLUCKED adds a square wave 7 cents sharp, SOFT PAD two sawtooths at ±8 cents plus a
+ * triangle an octave below, BELL's carrier is frequency-modulated by an inharmonic partner
+ * (its index decays to nothing, leaving the pure note), PERCUSSIVE's body starts a little
+ * above the note.
  */
 import { fadeOut, GainEnvelope, type Instrument, type NoteHandle, type NoteRequest } from '@slopfactory/core/audio';
+import { midiToHz } from '../engine/scales';
 import type { Sound } from '../engine/types';
-
-const hz = (pitch: number) => 440 * Math.pow(2, (pitch - 69) / 12);
 
 interface Shape {
   attack: number;
@@ -78,7 +84,7 @@ export class PreviewInstrument implements Instrument {
   start(ctx: BaseAudioContext, out: AudioNode, note: NoteRequest): NoteHandle | null {
     const sh = SHAPES[this.sound];
     const t = Math.max(note.time, ctx.currentTime);
-    const f = hz(note.pitch);
+    const f = midiToHz(note.pitch);
     const v = Math.pow(note.velocity / 127, 1.4) * sh.level;
     const amp = ctx.createGain();
     amp.gain.value = 0;
@@ -137,10 +143,11 @@ export class PreviewInstrument implements Instrument {
         break;
       }
       case 'perc': {
-        // a tuned drum: a falling sine body and a short noise click
-        const body = osc('sine', f * 2, amp);
-        body.frequency.setValueAtTime(f * 2, t);
-        body.frequency.exponentialRampToValueAtTime(Math.max(20, f / 2), t + 0.12);
+        // a tuned drum: a sine body that starts above the note and settles ON it in 60 ms (it
+        // used to keep falling to half the note's frequency, an octave flat), and a noise click
+        const body = osc('sine', f, amp);
+        body.frequency.setValueAtTime(f * 1.8, t);
+        body.frequency.exponentialRampToValueAtTime(f, t + 0.06);
         const len = Math.floor(ctx.sampleRate * 0.03);
         const buf = ctx.createBuffer(1, len, ctx.sampleRate);
         const d = buf.getChannelData(0);

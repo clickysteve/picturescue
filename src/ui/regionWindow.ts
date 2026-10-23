@@ -4,9 +4,9 @@
  * how it INTERPRETS what it sees, how it SCANS, which NOTES it may play, how it BEHAVES,
  * and where it is (PLACE).
  */
-import { MAPPING_PRESETS, matchingPreset } from '../engine/mapping';
+import { MAPPING_PRESETS, matchingPreset, pitchSetup } from '../engine/mapping';
 import { LAYOUT_LABEL, LAYOUTS, clampRect, type Layout } from '../engine/regions';
-import { NOTE_NAMES, noteName, SCALES } from '../engine/scales';
+import { NOTE_NAMES, noteName, scaleById } from '../engine/scales';
 import { CC_LABEL, CC_SOURCES, MODE_LABEL, MODES, PITCH_LABEL, PITCH_SOURCES, RATE_LABEL, RATES, REPEATS, SCAN_LABEL, SCAN_MODES, SOUND_LABEL, SOUNDS, TRIGGER_LABEL, TRIGGERS, VEL_LABEL, VEL_SOURCES, type RegionSettings } from '../engine/types';
 import type { App } from '../app/app';
 import { el, label, setTip, svgEl } from './dom';
@@ -39,6 +39,7 @@ export class RegionWindow {
   win: MWindow;
   private ctrls: { update(): void }[] = [];
   private tabs: HTMLDivElement[] = [];
+  private scaleInfo!: HTMLDivElement;
 
   constructor(
     private app: App,
@@ -157,16 +158,17 @@ export class RegionWindow {
     num(2, 138, 'LENGTH', { tip: 'Scan length: steps before the scan starts again (0 = the whole path)', min: 0, max: 4096, get: () => R().length, set: (v) => ((R().length = v), changed()), format: (v) => (v ? String(v) : 'FULL') });
 
     // ------------------------------------------------ NOTES
+    // One scale and root for the whole composition live in the TRANSPORT window; a region only
+    // chooses its range, shift and velocities.
     head(158, 'NOTES');
-    this.ctrls.push(new Btn(b, 300, 156, 52, 13, 'GLOBAL', { tip: 'Use the global scale and root (Transport window) instead of this region’s own', on: () => R().globalScale, onClick: () => ((R().globalScale = !R().globalScale), changed()) }));
-    sel(0, 170, 'SCALE', { tip: 'This region’s own scale (when GLOBAL is off)', items: () => SCALES.map((s) => ({ value: s.id, label: s.short, tip: s.name })), get: () => (R().globalScale ? app.patch.scale : R().scale), set: (v) => ((R().scale = v), (R().globalScale = false), changed()) });
-    sel(1, 170, 'ROOT', { tip: 'This region’s own root (when GLOBAL is off)', items: () => NOTE_NAMES.map((n, i) => ({ value: i, label: n })), get: () => (R().globalScale ? app.patch.root : R().root), set: (v) => ((R().root = v), (R().globalScale = false), changed()) });
-    num(2, 170, 'TRANSP', { tip: 'Transposition in semitones (after scale mapping)', min: -24, max: 24, get: () => R().transpose, set: (v) => ((R().transpose = v), changed()), format: (v) => (v > 0 ? '+' + v : String(v)) });
-    num(0, 188, 'LOW', { tip: 'Lowest note (type a number or a name such as C3)', min: 0, max: 127, get: () => R().low, set: (v) => ((R().low = Math.min(v, R().high)), changed()), format: noteName, parse: parseNote });
-    num(1, 188, 'HIGH', { tip: 'Highest note (type a number or a name such as C5)', min: 0, max: 127, get: () => R().high, set: (v) => ((R().high = Math.max(v, R().low)), changed()), format: noteName, parse: parseNote });
-    num(2, 188, 'OCTAVE', { tip: 'Octave transposition', min: -3, max: 3, get: () => R().octave, set: (v) => ((R().octave = v), changed()), format: (v) => (v > 0 ? '+' + v : String(v)) });
-    num(0, 206, 'VEL MIN', { tip: 'Softest velocity', min: 1, max: 127, get: () => R().velMin, set: (v) => ((R().velMin = Math.min(v, R().velMax)), changed()) });
-    num(1, 206, 'VEL MAX', { tip: 'Loudest velocity', min: 1, max: 127, get: () => R().velMax, set: (v) => ((R().velMax = Math.max(v, R().velMin)), changed()) });
+    num(0, 170, 'LOW', { tip: 'Lowest playable note (type a number or a name such as C3). Every note this region plays is in the global scale and between LOW and HIGH.', min: 0, max: 127, get: () => R().low, set: (v) => ((R().low = Math.min(v, R().high)), changed()), format: noteName, parse: parseNote });
+    num(1, 170, 'HIGH', { tip: 'Highest playable note (type a number or a name such as C5)', min: 0, max: 127, get: () => R().high, set: (v) => ((R().high = Math.max(v, R().low)), changed()), format: noteName, parse: parseNote });
+    num(2, 170, 'TRANSP', { tip: 'Transpose: shifts this region’s melody by this many semitones, then every note is snapped to the global scale and folded back into LOW..HIGH', min: -24, max: 24, get: () => R().transpose, set: (v) => ((R().transpose = v), changed()), format: (v) => (v > 0 ? '+' + v : String(v)) });
+    num(0, 188, 'OCTAVE', { tip: 'Octave shift: moves this region’s register by whole octaves; notes that would leave LOW..HIGH fold back into it by octaves', min: -3, max: 3, get: () => R().octave, set: (v) => ((R().octave = v), changed()), format: (v) => (v > 0 ? '+' + v : String(v)) });
+    num(1, 188, 'VEL MIN', { tip: 'Softest velocity', min: 1, max: 127, get: () => R().velMin, set: (v) => ((R().velMin = Math.min(v, R().velMax)), changed()) });
+    num(2, 188, 'VEL MAX', { tip: 'Loudest velocity', min: 1, max: 127, get: () => R().velMax, set: (v) => ((R().velMax = Math.max(v, R().velMin)), changed()) });
+    this.scaleInfo = label(b, 4, 209, '', 'tiny');
+    setTip(this.scaleInfo, 'The one global scale and root (TRANSPORT window) that all four regions play in, and how many of its notes lie between LOW and HIGH');
 
     // ------------------------------------------------ BEHAVIOUR
     head(226, 'BEHAVIOUR');
@@ -224,6 +226,11 @@ export class RegionWindow {
       const txt = `REGION ${i + 1}${extra}`;
       if (span.textContent !== txt) span.textContent = txt;
     });
+    const ps = pitchSetup(this.app.patch, this.app.patch.regions[sel]!);
+    const scaleName = `${NOTE_NAMES[this.app.patch.root]} ${scaleById(this.app.patch.scale).name.toUpperCase()}`;
+    const info = ps.inRange ? `${scaleName}: ${ps.notes.length} NOTE${ps.notes.length === 1 ? '' : 'S'} IN RANGE` : `${scaleName}: NO SCALE NOTE IN RANGE, PLAYS ${noteName(ps.notes[0]!)}`;
+    if (this.scaleInfo.textContent !== info) this.scaleInfo.textContent = info;
+    this.scaleInfo.style.color = ps.inRange ? '' : 'var(--ink)';
     this.win.setInfo(`CH ${this.app.patch.regions[sel]!.channel} · ${MODE_LABEL[this.app.patch.regions[sel]!.mode]}`);
     for (const c of this.ctrls) c.update();
   }

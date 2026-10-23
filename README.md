@@ -25,8 +25,8 @@ note**. That is about all the surviving documentation says. See
 [docs/ORIGINAL_RESEARCH.md](docs/ORIGINAL_RESEARCH.md) for sources, what is verified and what is
 not.
 
-PICTURESCUE keeps that idea at its centre (four regions, per-region channel / transposition /
-scale, colour-to-note, horizontal scanning, a 16-colour "ST COLOUR" reading of any picture) and
+PICTURESCUE keeps that idea at its centre (four regions, per-region channel and transposition,
+colour-to-note, horizontal scanning, a 16-colour "ST COLOUR" reading of any picture) and
 asks what it could become: more ways to read a picture, more ways to move through it, musical
 behaviours that find structure instead of playing every pixel, and a modern MIDI and browser
 toolset. It is a new instrument, not a recreation: it is a clean-room implementation that uses
@@ -39,7 +39,7 @@ none of the original's code, graphics or data.
 | 16-colour ST low-resolution pictures | Any PNG, JPEG, WebP, GIF (first frame) or BMP; kept at up to 640 px; analysed at 80–640 px (320 = ST) |
 | Each colour a note | Colour index (ST COLOUR) **or** brightness, hue, saturation; velocity and MIDI CC from measurements |
 | Four areas, scanned horizontally pixel by pixel | Four regions with scan grids and seven scan modes, reverse, rates, lengths, offsets |
-| Per-area channel, transposition, scale | The same, plus root, range, octave, velocity range and a global scale |
+| Per-area channel, transposition, scale | Per-region channel, transposition, octave, range and velocity range, but **one global scale and root** shared by all four regions, so they always sound together |
 | (not documented) | Six interpretation modes, density, thresholds, rests, spacing, gate, repetition handling |
 | (not documented) | Seeds, randomisation with locks, WILDCARD, factory presets, patches, MIDI file export and recording, internal sounds, MIDI clock |
 
@@ -115,16 +115,45 @@ never by animation frames.
 
 | Control | Choices |
 |---|---|
-| PITCH | BRIGHTNESS (light high, dark low), HUE (the colour wheel goes round the scale; brightness picks the octave), SATURATION, ST COLOUR (each of the 16 colours its own note) |
+| PITCH | BRIGHTNESS (light high, dark low), HUE (the colour wheel goes round the scale; brightness picks the octave), SATURATION, ST COLOUR (the 16-colour palette climbs the scale, darkest lowest) |
 | VELOCITY | SATURATION, BRIGHTNESS, EDGES, FIXED, within VEL MIN … VEL MAX |
 | TRIGGER | EVERY STEP, BRIGHT > THR, EDGES, COLOUR CHANGE, DETAIL (more often where the picture is busy), with THRESH |
 | CC FROM | OFF, HUE, BRIGHTNESS, SATURATION, EDGES on CC NO. (sent on change only) |
 | PRESET | Brightness → Pitch, Hue → Pitch, Each Colour a Note, Edges → Rhythm, Colour Changes → Notes, Detail → Density, Brightness → Velocity, Hue → CC |
 
-Notes always come from the region's scale between **LOW** and **HIGH**, then **TRANSP** (semitones)
-and **OCTAVE** apply. Each region uses the **global** scale and root (Transport window) or its own
-(turn **GLOBAL** off). Scales: Chromatic, Major, Natural Minor, Pentatonic Major, Pentatonic Minor,
-Dorian, Phrygian, Lydian, Mixolydian, Harmonic Minor, Whole Tone, Diminished.
+### Harmony: one scale, four voices
+
+The **SCALE** and **ROOT** in the TRANSPORT window are the **only** harmony in PICTURESCUE (default:
+C minor pentatonic). All four regions play in it, so whatever they do they sound together. A region
+keeps everything else its own: channel, sound, range, mapping, scan, rhythm, mode, velocity.
+Scales: Chromatic, Major, Natural Minor, Pentatonic Major, Pentatonic Minor, Dorian, Phrygian,
+Lydian, Mixolydian, Harmonic Minor, Whole Tone, Diminished.
+
+How every note is made, the same way live, exported and in the internal sounds:
+
+1. **Mapping** picks a pitch from the picture, from the scale's notes between **LOW** and **HIGH**
+   (this is the region's *playable range*).
+2. **TRANSP** (semitones) and **OCTAVE** shift that pitch: TRANSP moves the region's melody by that many
+   semitones, OCTAVE moves its register by whole octaves.
+3. The result is **snapped to the nearest note of the global scale**, so a transposition can
+   never leave the scale. A note exactly between two scale notes goes the way the shift was going
+   (up for +, down for −), so shifts up and down are mirror images and nothing leans one way.
+4. If the note is outside LOW..HIGH it is **folded back by whole octaves** (it keeps its note
+   name, and notes do not pile up on one boundary note). In a range narrower than an octave that
+   lacks the note, the in-range scale note with the nearest name is used.
+
+So every note is in the global scale **and** between LOW and HIGH. LOW and HIGH are the final
+range: to move a region higher, raise LOW and HIGH; TRANSP and OCTAVE move its contour *inside* the
+range. If a range holds no scale note at all (for example LOW = HIGH = C♯4 in C major) the region
+plays the nearest scale note and the REGION window says so.
+
+**ST COLOUR** pitch: each of up to 16 palette colours gets its own step up the region's scale notes,
+**darkest colour lowest**, so the contour follows brightness (colours share a note when the range
+has fewer than 16 scale notes). The palette is rebuilt for every picture (so the same RGB can have a
+different note in another picture), and colours of equal brightness are ordered arbitrarily (by their
+RGB values). A cell of several pixels uses the palette colour nearest its *average* colour; at
+1-pixel cells each pixel is its own colour. SATURATION on a greyscale picture is always the lowest
+note: use BRIGHTNESS or HUE (which falls back to brightness for grey).
 
 Behaviour: **DENSITY** keeps the busiest steps first; **REST** adds seeded silences; **SPACING** is
 a minimum number of steps between notes; **GATE** is the note length in steps; **REPEAT** decides
@@ -149,10 +178,10 @@ walks, chaotic jumps, pointillist scattering. Measurements are never random. The
 patch and seed always play the same.
 
 * **VARIATION** (V): a new seed, same settings.
-* **RANDOMISE** (⌥X / Alt+X) and **WILDCARD** (⌥W / Alt+W, bolder: also the global scale, swing
-  and regions' own scales) draw musically sensible settings (modes with scans and triggers that
+* **RANDOMISE** (⌥X / Alt+X) and **WILDCARD** (⌥W / Alt+W, bolder: also the global scale and root,
+  and the swing) draw musically sensible settings (modes with scans and triggers that
   suit them, playable ranges, sensible densities). **LOCKS** keep categories as they are: region
-  positions, mappings, scan directions, density, note ranges, scan rates, modes, scale / root.
+  positions, mappings, scan directions, density, note ranges, scan rates, modes, and the global scale / root (which only WILDCARD changes).
   MIDI settings and the picture are never randomised.
 
 ## MIDI

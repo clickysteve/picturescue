@@ -72,7 +72,6 @@ describe('randomisation', () => {
         if (cat === 'density') expect([r.density, r.rest, r.gate]).toEqual([o.density, o.rest, o.gate]);
         if (cat === 'ranges') expect([r.low, r.high]).toEqual([o.low, o.high]);
         if (cat === 'rates') expect(r.rate).toBe(o.rate);
-        if (cat === 'scales') expect([r.scale, r.root, r.globalScale]).toEqual([o.scale, o.root, o.globalScale]);
       });
       if (cat === 'scales') expect([p.scale, p.root]).toEqual([before.scale, before.root]);
     }

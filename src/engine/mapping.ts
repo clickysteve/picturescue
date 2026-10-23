@@ -3,7 +3,7 @@
  * deterministic: the same features and settings always give the same note.
  */
 import type { Features } from './analysis';
-import { scaleById, scaleNotes } from './scales';
+import { quantiseToScale, scaleById, scaleNotes, scaleNotesStrict } from './scales';
 import type { CcSource, Patch, PitchSource, RegionSettings, VelSource } from './types';
 
 /** Below this saturation a colour has no meaningful hue: HUE falls back to brightness. */
@@ -57,15 +57,79 @@ export function ccSource(src: CcSource, f: Features): number | null {
   }
 }
 
-/** The scale and root a region plays in. */
-export function regionScale(p: Patch, r: RegionSettings): { scale: string; root: number } {
-  return r.globalScale ? { scale: p.scale, root: p.root } : { scale: r.scale, root: r.root };
+/**
+ * Everything the final pitch stage needs for one region, from the ONE global scale and root
+ * (`Patch.scale`, `Patch.root`) and the region's own LOW / HIGH, TRANSPOSE and OCTAVE.
+ */
+export interface PitchSetup {
+  scale: string;
+  root: number;
+  /** playable range, 0..127, low <= high (a reversed range is swapped) */
+  lo: number;
+  hi: number;
+  /** TRANSPOSE + 12 * OCTAVE, in semitones */
+  shift: number;
+  /** the scale notes inside [lo, hi], ascending, never empty */
+  notes: number[];
+  /** false only when no scale note lies inside [lo, hi]: `notes` is then the one nearest note, just outside */
+  inRange: boolean;
 }
 
-/** The notes a region may play before transposition, ascending. */
-export function regionNotes(p: Patch, r: RegionSettings): number[] {
-  const s = regionScale(p, r);
-  return scaleNotes(s.scale, s.root, r.low, r.high);
+export function pitchSetup(p: Pick<Patch, 'scale' | 'root'>, r: Pick<RegionSettings, 'low' | 'high' | 'transpose' | 'octave'>): PitchSetup {
+  const lo = clamp(Math.round(Math.min(r.low, r.high)), 0, 127);
+  const hi = clamp(Math.round(Math.max(r.low, r.high)), 0, 127);
+  const strict = scaleNotesStrict(p.scale, p.root, lo, hi);
+  return { scale: p.scale, root: p.root, lo, hi, shift: r.transpose + 12 * r.octave, notes: strict.length ? strict : scaleNotes(p.scale, p.root, lo, hi), inRange: strict.length > 0 };
+}
+
+/** The notes a region may play: the global scale's notes between LOW and HIGH. */
+export function regionNotes(p: Pick<Patch, 'scale' | 'root'>, r: Pick<RegionSettings, 'low' | 'high'>): number[] {
+  return pitchSetup(p, { low: r.low, high: r.high, transpose: 0, octave: 0 }).notes;
+}
+
+/** Circular distance between two pitch classes, 0..6. */
+const pcDistance = (a: number, b: number): number => {
+  const d = (((a - b) % 12) + 12) % 12;
+  return Math.min(d, 12 - d);
+};
+
+/**
+ * Bring a scale note into [lo, hi] by whole octaves (which keeps it in the scale). If the range
+ * is narrower than an octave and has no octave of this note, take the in-range scale note whose
+ * pitch class is nearest (ties: the one nearer the middle of the range, then the lower), so a
+ * contour spreads over the range instead of piling on one boundary note.
+ */
+function foldIntoRange(note: number, s: PitchSetup): number {
+  if (!s.inRange) return s.notes[0]!;
+  if (note >= s.lo && note <= s.hi) return note;
+  let n = note;
+  while (n > s.hi) n -= 12;
+  while (n < s.lo) n += 12;
+  if (n >= s.lo && n <= s.hi) return n;
+  const mid = (s.lo + s.hi) / 2;
+  let best = s.notes[0]!;
+  for (const c of s.notes) {
+    const d = pcDistance(c, note);
+    const bd = pcDistance(best, note);
+    if (d < bd || (d === bd && Math.abs(c - mid) < Math.abs(best - mid))) best = c;
+  }
+  return best;
+}
+
+/**
+ * THE final pitch stage: every note PICTURESCUE plays (live, exported, internal sounds) is
+ * made here, from the pitch a mapping or mode picked (`raw`, a note of the region's range):
+ *
+ *   1. shift      raw + TRANSPOSE + 12 * OCTAVE semitones (the contour moves as a whole)
+ *   2. quantise   to the nearest note of the global scale (ties follow the shift's direction)
+ *   3. fold       into LOW..HIGH by whole octaves (never a clamp onto one boundary note)
+ *
+ * so the result is always a note of the global scale inside the region's range. Only if the
+ * range holds no scale note at all is the result (the nearest scale note) outside it.
+ */
+export function resolvePitch(raw: number, s: PitchSetup): number {
+  const q = quantiseToScale(raw + s.shift, s.scale, s.root, Math.sign(s.shift));
+  return clamp(foldIntoRange(q, s), 0, 127);
 }
 
 /** Index into a list of n items for a 0..1 value (1 maps to the last). */
@@ -86,11 +150,6 @@ export function mapPitch(src: PitchSource, f: Features, notes: readonly number[]
     if (candidates.length) return candidates[pickIndex(f.lum, candidates.length)]!;
   }
   return notes[pickIndex(sourceValue(src, f, paletteSize), notes.length)]!;
-}
-
-/** Transposition after mapping, kept inside MIDI's range. */
-export function transposed(r: RegionSettings, pitch: number): number {
-  return clamp(Math.round(pitch + r.transpose + 12 * r.octave), 0, 127);
 }
 
 /** Velocity inside the region's range. */
@@ -116,7 +175,7 @@ export interface MappingPreset {
 export const MAPPING_PRESETS: MappingPreset[] = [
   { id: 'bright-pitch', label: 'BRIGHTNESS → PITCH', tip: 'Light is high, dark is low; saturation is loudness', set: { pitchFrom: 'brightness', velFrom: 'saturation', trigger: 'every', ccFrom: 'off' } },
   { id: 'hue-pitch', label: 'HUE → PITCH', tip: 'The colour wheel goes round the scale; brightness picks the octave', set: { pitchFrom: 'hue', velFrom: 'saturation', trigger: 'every', ccFrom: 'off' } },
-  { id: 'st-colours', label: 'EACH COLOUR A NOTE', tip: 'The original idea: each of the 16 ST colours plays its own note', set: { pitchFrom: 'colour', velFrom: 'fixed', trigger: 'every', ccFrom: 'off' } },
+  { id: 'st-colours', label: 'EACH COLOUR A NOTE', tip: 'The original idea: the 16-colour palette climbs the scale, darkest colour lowest (colours share a note when the range has fewer than 16)', set: { pitchFrom: 'colour', velFrom: 'fixed', trigger: 'every', ccFrom: 'off' } },
   { id: 'edges-rhythm', label: 'EDGES → RHYTHM', tip: 'Notes where the picture has edges; edge strength is loudness', set: { pitchFrom: 'brightness', velFrom: 'edges', trigger: 'edges', ccFrom: 'off' } },
   { id: 'colour-changes', label: 'COLOUR CHANGES → NOTES', tip: 'A note whenever the colour changes noticeably', set: { pitchFrom: 'hue', velFrom: 'edges', trigger: 'change', ccFrom: 'off' } },
   { id: 'detail-density', label: 'DETAIL → DENSITY', tip: 'Busy areas play often, plain areas rarely', set: { pitchFrom: 'brightness', velFrom: 'edges', trigger: 'detail', ccFrom: 'off' } },

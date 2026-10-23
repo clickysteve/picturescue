@@ -23,9 +23,9 @@ export const FACTORY: Factory[] = [
   {
     id: 'picture-music',
     name: 'PICTURE MUSIC',
-    about: 'The original idea: four areas, each colour a note, scanned left to right',
+    about: 'The original idea: four areas, each colour a step up the scale, scanned left to right (the first-load preset, in the default C minor pentatonic)',
     make: () =>
-      base('PICTURE MUSIC', 'st-lowres', 'quadrants', { bpm: 120, stepsPerBeat: 4, scale: 'major', root: 0, seed: 1994, seedText: '1994' }, [0, 1, 2, 3].map((i) => ({ mode: 'melodic', pitchFrom: 'colour', velFrom: 'fixed', trigger: 'every', scan: 'horizontal', cols: 16, rows: 4, rate: 2, density: 1, rest: 0, gate: 0.9, repeat: 'tie', low: [60, 48, 55, 36][i], high: [84, 72, 79, 60][i], sound: (['pluck', 'sine', 'bell', 'pad'] as const)[i], channel: i + 1 }))),
+      base('PICTURE MUSIC', 'st-lowres', 'quadrants', { bpm: 120, stepsPerBeat: 4, scale: 'minorPentatonic', root: 0, seed: 1994, seedText: '1994' }, [0, 1, 2, 3].map((i) => ({ mode: 'melodic', pitchFrom: 'colour', velFrom: 'fixed', trigger: 'every', scan: 'horizontal', cols: 16, rows: 4, rate: 2, density: 1, rest: 0, gate: 0.9, repeat: 'tie', low: [60, 48, 55, 36][i], high: [84, 72, 79, 60][i], sound: (['pluck', 'sine', 'bell', 'pad'] as const)[i], channel: i + 1 }))),
   },
   {
     id: 'monochrome-melody',

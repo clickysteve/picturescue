@@ -53,9 +53,9 @@ export class TransportWindow {
     label(b, 100, y2 + 4, 'SWING', 'tiny');
     this.ctrls.push(new Num(b, 126, y2, 34, 15, { tip: 'Swing: every second step is delayed', min: 0, max: 50, step: 1, big: 10, get: () => Math.round(app.patch.swing * 100), set: (v) => ((app.patch.swing = v / 100), app.changed('patch')), format: (v) => v + '%' }));
     label(b, 166, y2 + 4, 'SCALE', 'tiny');
-    this.ctrls.push(new Sel<string>(b, 192, y2, 76, 15, { tip: 'Global scale (regions with GLOBAL on)', items: () => SCALES.map((s) => ({ value: s.id, label: s.name.toUpperCase() })), get: () => app.patch.scale, set: (v) => ((app.patch.scale = v), app.changed('patch')) }));
+    this.ctrls.push(new Sel<string>(b, 192, y2, 76, 15, { label: 'Global scale', tip: 'THE scale: all four regions play only notes of this scale', items: () => SCALES.map((s) => ({ value: s.id, label: s.name.toUpperCase() })), shown: (id) => SCALES.find((s) => s.id === id)?.short ?? id, get: () => app.patch.scale, set: (v) => ((app.patch.scale = v), app.changed('patch')) }));
     label(b, 272, y2 + 4, 'ROOT', 'tiny');
-    this.ctrls.push(new Sel<number>(b, 294, y2, 38, 15, { tip: 'Global root note', items: () => NOTE_NAMES.map((n, i) => ({ value: i, label: n })), get: () => app.patch.root, set: (v) => ((app.patch.root = v), app.changed('patch')) }));
+    this.ctrls.push(new Sel<number>(b, 294, y2, 38, 15, { label: 'Global root', tip: 'THE root note of the scale (C by default): all four regions play in it', items: () => NOTE_NAMES.map((n, i) => ({ value: i, label: n })), get: () => app.patch.root, set: (v) => ((app.patch.root = v), app.changed('patch')) }));
     this.ctrls.push(new Btn(b, 334, y2, 18, 15, '!', { tip: 'PANIC: every note off on all 16 channels (⌘. / Ctrl .)', onClick: () => app.panic() }));
 
     const y3 = 47;
@@ -63,7 +63,7 @@ export class TransportWindow {
     this.seed = textField(b, 26, y3, 104, 15, { label: 'Seed', tip: 'The seed: a number or any words. It decides every random choice (rests, walks, jumps), so the same picture, patch and seed always play the same.', get: () => app.patch.seedText, set: (v) => app.setSeedText(v) });
     this.ctrls.push(new Btn(b, 133, y3, 54, 15, 'VARIATION', { tip: 'New variation: a new seed (V)', onClick: () => app.newVariation() }));
     this.ctrls.push(new Btn(b, 190, y3, 58, 15, 'RANDOMISE', { tip: 'Randomise the regions (not the locked categories, never the MIDI settings or the picture) (⌥X)', onClick: () => app.randomise(false) }));
-    this.ctrls.push(new Btn(b, 251, y3, 58, 15, 'WILDCARD', { tip: 'Randomise more boldly: also the global scale, swing and regions’ own scales (⌥W)', onClick: () => app.randomise(true) }));
+    this.ctrls.push(new Btn(b, 251, y3, 58, 15, 'WILDCARD', { tip: 'Randomise more boldly: also the global scale and root, and the swing (⌥W)', onClick: () => app.randomise(true) }));
     this.ctrls.push(new Btn(b, 312, y3, 40, 15, 'LOCKS', { tip: 'Which categories randomising leaves alone', on: () => Object.values(app.prefs.locks).some(Boolean), onClick: () => this.openLocks() }));
 
     const y4 = 67;

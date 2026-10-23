@@ -15,9 +15,9 @@
  * `releaseAll` ends whatever is held.
  */
 import { areaFeatures, colourDistance, type Analysis, type Features } from './analysis';
-import { clamp, clamp01, edgeAmount, mapPitch, mapVelocity, nearestNote, pickIndex, regionNotes, regionScale, sourceValue, transposed, velocitySource, ccSource } from './mapping';
+import { clamp01, edgeAmount, mapPitch, mapVelocity, nearestNote, pickIndex, pitchSetup, resolvePitch, sourceValue, velocitySource, ccSource, type PitchSetup } from './mapping';
 import { hashUnit } from './rng';
-import { inScale, nearestInScale, scaleById } from './scales';
+import { scaleById } from './scales';
 import { cellAt, jumpCell, manualCell, passLength, scanPath } from './scan';
 import { PPQ, stepTicks, type Patch, type RegionSettings } from './types';
 
@@ -48,6 +48,9 @@ interface RegionState {
   lastCc: number;
   droneKey: number;
   held: Held[];
+  /** the pitch stage's inputs for this region, rebuilt when the scale, range or shift changes */
+  setup: PitchSetup | null;
+  setupKey: string;
   /** delayed notes (ratchets), absolute ticks */
   pending: Pending[];
 }
@@ -72,7 +75,7 @@ interface Planned {
 
 const SALT = { density: 1, rest: 2, jump: 3, prob: 4, octave: 5, ratchet: 6, gate: 7, vel: 8, every: 9 } as const;
 
-const freshState = (): RegionState => ({ next: 0, step: 0, done: false, path: [], pathKey: '', prev: null, lastPitch: -1, lastStep: -1e9, smooth: -1, lastCc: -1, droneKey: -1, held: [], pending: [] });
+const freshState = (): RegionState => ({ next: 0, step: 0, done: false, path: [], pathKey: '', prev: null, lastPitch: -1, lastStep: -1e9, smooth: -1, lastCc: -1, droneKey: -1, held: [], setup: null, setupKey: '', pending: [] });
 
 export class Performance {
   /** ticks rendered so far: everything before this has been returned */
@@ -212,6 +215,19 @@ export class Performance {
     return s.path;
   }
 
+  /** The pitch stage's inputs for a region: the global scale and root, the region's range and shift. */
+  private setupFor(i: number): PitchSetup {
+    const p = this.patch;
+    const r = p.regions[i]!;
+    const s = this.st[i]!;
+    const key = `${p.scale}|${p.root}|${r.low}|${r.high}|${r.transpose}|${r.octave}`;
+    if (!s.setup || s.setupKey !== key) {
+      s.setup = pitchSetup(p, r);
+      s.setupKey = key;
+    }
+    return s.setup;
+  }
+
   /** The cell a region's step visits. */
   cellFor(i: number, step: number): number {
     const r = this.patch.regions[i]!;
@@ -258,9 +274,12 @@ export class Performance {
         out.push({ type: 'cc', tick: t, region: i, channel: r.channel, cc: r.cc, value: v });
       }
     }
+    // the one final pitch stage: shift, quantise to the global scale, fold into the range
+    const setup = this.setupFor(i);
     for (const n of planned) {
-      if (n.at > 0) s.pending.push({ ...n, at: t + n.at, channel: r.channel, note: transposed(r, n.pitch) });
-      else out.push(...this.strike(i, { ...n, at: t, channel: r.channel, note: transposed(r, n.pitch) }, t, stepEv));
+      const note = resolvePitch(n.pitch, setup);
+      if (n.at > 0) s.pending.push({ ...n, at: t + n.at, channel: r.channel, note });
+      else out.push(...this.strike(i, { ...n, at: t, channel: r.channel, note }, t, stepEv));
     }
     if (planned.length) {
       s.lastPitch = planned[planned.length - 1]!.pitch;
@@ -306,8 +325,7 @@ export class Performance {
     const p = this.patch;
     const s = this.st[i]!;
     const rand = (salt: number) => hashUnit(p.seed, i, s.step, salt);
-    const notes = regionNotes(p, r);
-    const { scale, root } = regionScale(p, r);
+    const { notes, scale, root } = this.setupFor(i);
     const pal = this.analysis!.palette.length;
     const value = sourceValue(r.pitchFrom, f, pal);
     const edge = edgeAmount(f);
@@ -396,18 +414,18 @@ export class Performance {
         if (resting && !held) return [];
         s.droneKey = key;
         const steps = scaleById(scale).steps;
-        const low = notes[0]!;
+        // the root and the fifth, taken from the region's in-range scale notes (lowest octave)
         const rootPc = (root + steps[deg]!) % 12;
-        let n = low;
-        while (n % 12 !== rootPc && n < 127) n++;
-        const fifth = inScale(scale, root, n + 7) ? n + 7 : nearestInScale(scale, root, n + 7);
+        const n = notes.find((x) => x % 12 === rootPc) ?? nearestNote(notes, notes[0]! + deg);
+        const fifthPc = (rootPc + 7) % 12;
+        const fifth = notes.find((x) => x % 12 === fifthPc && x > n) ?? nearestNote(notes, n + 7);
         const v = vel(0.3 + velIn * 0.4);
         // the previous chord ends as this one starts
         for (const h of s.held) h.end = Math.min(h.end, this.st[i]!.next);
         const dur = Math.max(gateTicks, 8 * len);
         return [
           { pitch: n, velocity: v, dur, at: 0 },
-          { pitch: clamp(fifth, 0, 127), velocity: Math.max(1, v - 10), dur, at: 0 },
+          { pitch: fifth, velocity: Math.max(1, v - 10), dur, at: 0 },
         ];
       }
       case 'chaotic': {
@@ -415,8 +433,9 @@ export class Performance {
         const v = (f.hue / 360 + f.lum * 1.618 + edge) % 1;
         let n = notes[pickIndex(v, notes.length)]!;
         const jump = rand(SALT.octave);
-        if (jump < 0.15) n -= 12;
-        else if (jump > 0.85) n += 12;
+        // an octave leap, only where the leap lands on a note of the range
+        if (jump < 0.15 && notes.includes(n - 12)) n -= 12;
+        else if (jump > 0.85 && notes.includes(n + 12)) n += 12;
         const g = gateTicks * (0.15 + 0.85 * rand(SALT.gate));
         const out: Planned[] = [{ pitch: n, velocity: vel(rand(SALT.vel)), dur: g, at: 0 }];
         if (rand(SALT.ratchet) < 0.25) out.push({ pitch: nearestNote(notes, n + (jump < 0.5 ? 2 : -2)), velocity: vel(rand(SALT.vel) * 0.7), dur: len * 0.4, at: Math.round(len / 2) });

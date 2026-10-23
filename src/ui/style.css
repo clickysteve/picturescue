@@ -1,0 +1,672 @@
+/*
+ * PICTURESCUE's visual language: the Slop Factory's 1-bit GEM look, as in emmm. A black
+ * desktop, white windows with 1px frames, bold titles in a tab with a slanted edge, dithered
+ * greys, inverted selections, two pixel fonts. Everything is drawn in a fixed logical
+ * coordinate space (the "screen") scaled to fit the browser window.
+ *
+ * Colours come from palette roles (Slop Factory Core's palette system sets them); these
+ * defaults are the Classic palette.
+ */
+@import '@fontsource/tiny5/400.css';
+@import '@fontsource/silkscreen/400.css';
+
+:root {
+  --desktop: #000;
+  --ink: #000;
+  --paper: #fff;
+  --dim: #000;
+  --activity: #000;
+  --selection: #000;
+  --r1: var(--ink);
+  --r2: var(--ink);
+  --r3: var(--ink);
+  --r4: var(--ink);
+  --font: 'Tiny5', 'Geneva', 'Chicago', system-ui, sans-serif;
+  --font-tiny: 'Silkscreen', 'Tiny5', monospace;
+  --grey: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='2' height='2' shape-rendering='crispEdges'%3E%3Crect width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='1' width='1' height='1' fill='%23000'/%3E%3C/svg%3E");
+  --lightgrey: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' shape-rendering='crispEdges'%3E%3Crect width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='2' width='1' height='1' fill='%23000'/%3E%3C/svg%3E");
+  --dots: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' shape-rendering='crispEdges'%3E%3Crect x='1' y='1' width='1' height='1' fill='%23000'/%3E%3C/svg%3E");
+  --hatch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' shape-rendering='crispEdges'%3E%3Crect x='3' y='0' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='1' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='2' width='1' height='1' fill='%23000'/%3E%3Crect x='0' y='3' width='1' height='1' fill='%23000'/%3E%3C/svg%3E");
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--desktop);
+  color: var(--ink);
+  overflow: hidden;
+  font-family: var(--font);
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+  background: var(--desktop);
+}
+
+#screen {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  background: var(--desktop);
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1;
+}
+
+svg {
+  fill: var(--ink);
+}
+
+.fill-grey {
+  background-image: var(--grey);
+  background-size: 2px 2px;
+}
+.fill-lightgrey {
+  background-image: var(--lightgrey);
+  background-size: 4px 4px;
+}
+.fill-dots {
+  background-image: var(--dots);
+  background-size: 4px 4px;
+}
+
+/* ------------------------------------------------------------ menu bar */
+#menubar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  height: 15px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--ink);
+  display: flex;
+  align-items: stretch;
+  font-weight: 600;
+  font-size: 10px;
+  z-index: 10000;
+}
+#menubar .menu {
+  position: relative;
+  padding: 0 7px;
+  display: flex;
+  align-items: center;
+  cursor: default;
+}
+#menubar .menu.open {
+  background: var(--selection);
+  color: var(--paper);
+}
+#menubar .menu.logo {
+  letter-spacing: -0.5px;
+}
+#menubar .status {
+  margin-left: auto;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  font-weight: 400;
+  font-size: 9px;
+  gap: 8px;
+  white-space: nowrap;
+}
+.dropdown {
+  position: absolute;
+  top: 15px;
+  left: 0;
+  min-width: 170px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  box-shadow: 1px 1px 0 var(--ink);
+  padding: 1px 0;
+  z-index: 10001;
+}
+.dropdown .item {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 2px 6px 2px 12px;
+  white-space: nowrap;
+  position: relative;
+}
+.dropdown .item.checked::before {
+  content: '✓';
+  position: absolute;
+  left: 2px;
+}
+.dropdown .item:hover:not(.disabled) {
+  background: var(--selection);
+  color: var(--paper);
+}
+.dropdown .item.disabled {
+  color: var(--dim);
+}
+.dropdown .sep {
+  border-top: 1px dotted var(--ink);
+  margin: 2px 0;
+}
+.dropdown .key {
+  font-weight: 400;
+}
+
+/* ------------------------------------------------------------ windows */
+.mwin {
+  position: absolute;
+  will-change: transform;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  outline: 1px solid var(--paper);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+.mwin .titlebar {
+  position: relative;
+  height: 16px;
+  border-bottom: 1px solid var(--ink);
+  display: flex;
+  align-items: stretch;
+  cursor: default;
+  overflow: hidden;
+  background-image: var(--lightgrey);
+  background-size: 4px 4px;
+}
+.mwin .title {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 4px 0 6px;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  background: var(--paper);
+  z-index: 1;
+}
+.mwin .slant {
+  width: 16px;
+  position: relative;
+  flex: none;
+}
+.mwin .slant svg {
+  position: absolute;
+  inset: 0;
+}
+.mwin .close {
+  width: 13px;
+  flex: none;
+  position: relative;
+  background: var(--paper);
+}
+.mwin .titlefill {
+  flex: 1;
+}
+.mwin .titleinfo {
+  background: var(--paper);
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  font-size: 9px;
+  border-left: 1px solid var(--ink);
+}
+.mwin .body {
+  position: relative;
+}
+
+/* ------------------------------------------------------------ controls */
+.label {
+  position: absolute;
+  font-size: 9px;
+  white-space: nowrap;
+  line-height: 9px;
+}
+.label.small {
+  font-size: 8px;
+}
+.label.tiny {
+  font-family: var(--font-tiny);
+  color: var(--dim);
+  font-size: 7px;
+  line-height: 7px;
+}
+.label.head {
+  font-family: var(--font-tiny);
+  font-size: 7px;
+  line-height: 7px;
+  padding: 1px 3px;
+  background: var(--ink);
+  color: var(--paper);
+}
+.rule {
+  position: absolute;
+  height: 1px;
+  background-image: var(--grey);
+  background-size: 2px 2px;
+}
+.box {
+  position: absolute;
+  border: 1px solid var(--ink);
+}
+.num {
+  position: absolute;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  font-weight: 600;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+  white-space: nowrap;
+  overflow: hidden;
+  outline: none;
+}
+.num:focus {
+  outline: 2px solid var(--selection);
+  outline-offset: 1px;
+}
+.num.editing {
+  outline: 2px solid var(--selection);
+  outline-offset: 0;
+}
+.num.disabled,
+.btn.disabled,
+.msel.disabled {
+  color: var(--dim);
+  border-color: var(--dim);
+  pointer-events: none;
+}
+.btn {
+  position: absolute;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 10px;
+  cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
+  gap: 3px;
+}
+.btn.round {
+  border-radius: 6px;
+}
+.btn.on,
+.btn:active,
+.btn.pressed {
+  background: var(--ink);
+  color: var(--paper);
+}
+.btn.on svg,
+.btn:active svg {
+  fill: var(--paper);
+}
+.btn:focus-visible,
+.mbutton:focus-visible {
+  outline: 1px dotted var(--ink);
+  outline-offset: 2px;
+}
+.inv {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* text fields and buttons inside dialogs and windows */
+input.mtext,
+.mdialog input {
+  user-select: text;
+  -webkit-user-select: text;
+}
+input.mtext,
+.mdialog input[type='text'],
+.mdialog input[type='number'] {
+  font: inherit;
+  font-size: 10px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 1px 3px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+input.mtext:focus {
+  outline: 2px solid var(--selection);
+  outline-offset: 0;
+}
+.mbutton {
+  font: inherit;
+  font-weight: 600;
+  font-size: 10px;
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 2px 10px;
+}
+.mbutton:active {
+  background: var(--ink);
+  color: var(--paper);
+}
+.mbutton.default {
+  box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--ink);
+}
+.mbutton:disabled {
+  opacity: 0.4;
+}
+
+/* pop-up selector */
+.msel {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--ink);
+  box-shadow: 1px 1px 0 var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 9px;
+  padding: 0 11px 0 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: default;
+  outline: none;
+}
+.msel-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.msel-arrow {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  margin-top: -2px;
+  width: 5px;
+  height: 3px;
+  background: var(--ink);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.msel:focus-visible {
+  outline: 1px dotted var(--ink);
+  outline-offset: 1px;
+}
+.msel.open {
+  background: var(--selection);
+  color: var(--paper);
+}
+.msel.open .msel-arrow {
+  background: var(--paper);
+}
+.msel-list {
+  position: absolute;
+  z-index: 20001;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  box-shadow: 1px 1px 0 var(--ink);
+  padding: 1px 0;
+  font-size: 10px;
+  max-height: 300px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink) var(--paper);
+}
+.msel-item {
+  position: relative;
+  padding: 2px 10px 2px 12px;
+  white-space: nowrap;
+}
+.msel-item.checked::before {
+  content: '✓';
+  position: absolute;
+  left: 2px;
+}
+.msel-item.hot {
+  background: var(--selection);
+  color: var(--paper);
+}
+
+/* tooltips */
+.mtip {
+  position: absolute;
+  z-index: 40000;
+  max-width: 240px;
+  padding: 2px 4px 3px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  box-shadow: 1px 1px 0 var(--ink);
+  font-size: 9px;
+  line-height: 11px;
+  white-space: normal;
+  pointer-events: none;
+}
+
+/* dialogs */
+.mdialog {
+  position: absolute;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  outline: 1px solid var(--paper);
+  box-shadow: 0 0 0 3px var(--ink);
+  padding: 10px 12px;
+  z-index: 30000;
+  font-size: 10px;
+  line-height: 13px;
+}
+.mdialog .buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* ------------------------------------------------------------ the picture */
+.picture-area {
+  position: absolute;
+  overflow: hidden;
+  background-image: var(--grey);
+  background-size: 2px 2px;
+  border: 1px solid var(--ink);
+}
+.picture-area canvas {
+  position: absolute;
+  image-rendering: pixelated;
+}
+.picture-area svg.overlay {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.picture-area.dragover {
+  outline: 3px dashed var(--selection);
+  outline-offset: -4px;
+}
+.picture-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 11px;
+  text-align: center;
+  line-height: 14px;
+  pointer-events: none;
+}
+.picture-empty .panel {
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+  padding: 10px 16px;
+}
+.rgn-outline {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+.rgn-tag text {
+  font-family: var(--font);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------ region tabs */
+.rtab {
+  position: absolute;
+  border: 1px solid var(--ink);
+  border-bottom: none;
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 5px;
+  font-weight: 600;
+  font-size: 10px;
+  cursor: default;
+}
+.rtab.sel {
+  background: var(--ink);
+  color: var(--paper);
+}
+.rtab .sw {
+  width: 14px;
+  height: 7px;
+  border: 1px solid currentColor;
+}
+.rtab.off {
+  color: var(--dim);
+}
+
+/* activity lanes */
+.lane-led {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper);
+}
+.lane-led.lit {
+  background: var(--activity);
+}
+.meter {
+  position: absolute;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  overflow: hidden;
+}
+.meter .bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background-image: var(--grey);
+  background-size: 2px 2px;
+}
+.meter .bar.solid {
+  background: var(--ink);
+}
+.roll {
+  position: absolute;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+
+.monitor-log {
+  position: absolute;
+  font-family: var(--font-tiny);
+  font-size: 7px;
+  line-height: 8px;
+  overflow: hidden;
+  white-space: pre;
+}
+
+.shortcuts {
+  font-size: 9px;
+  line-height: 11px;
+}
+.shortcuts table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 2px 0 8px;
+}
+.shortcuts td {
+  padding: 1px 4px 1px 0;
+  vertical-align: top;
+}
+.shortcuts td.k {
+  width: 120px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.prose {
+  position: absolute;
+  font-size: 9px;
+  line-height: 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink) var(--paper);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.prose h3 {
+  font-size: 10px;
+  margin: 8px 0 3px;
+  padding-bottom: 1px;
+  border-bottom: 1px solid var(--ink);
+}
+.prose p {
+  margin: 0 0 5px;
+}
+.prose b {
+  font-weight: 600;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.flash {
+  filter: invert(1);
+}
+.refused {
+  animation: mrefuse 0.3s steps(1) 1;
+}
+@keyframes mrefuse {
+  0%,
+  49% {
+    filter: invert(1);
+  }
+  50%,
+  100% {
+    filter: none;
+  }
+}
+@keyframes mblink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.2;
+  }
+}
+.blink {
+  animation: mblink 1s steps(1) infinite;
+}

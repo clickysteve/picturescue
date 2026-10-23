@@ -129,7 +129,20 @@ export interface RegionSettings {
   manualY: number;
 }
 
-export type ImageRef = { kind: 'demo'; id: string } | { kind: 'embedded'; name: string; dataUrl: string; width: number; height: number } | { kind: 'none' };
+/**
+ * The picture a patch plays. Demo pictures are referred to by id (they are drawn by code).
+ * Other pictures are embedded: their source pixels (at most SOURCE_MAX on the longest side),
+ * losslessly, as base64 of deflated, delta-filtered RGBA planes ('rgba-delta-deflate'), so a
+ * reopened patch analyses exactly the same pixels. 'dataurl' accepts an ordinary image data
+ * URL (PNG, JPEG, …) for hand-made patches; the browser decodes it.
+ */
+export type ImageRef =
+  | { kind: 'demo'; id: string }
+  | { kind: 'embedded'; name: string; width: number; height: number; encoding: 'rgba-delta-deflate' | 'dataurl'; data: string; originalW?: number; originalH?: number }
+  | { kind: 'none' };
+
+/** Longest side of the pixels kept from a loaded picture (and embedded in patches). */
+export const SOURCE_MAX = 640;
 
 export interface Patch {
   format: 'picturescue-patch';
@@ -293,8 +306,18 @@ export function sanitiseRegion(v: unknown, i: number): RegionSettings {
 function sanitiseImage(v: unknown): ImageRef {
   const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
   if (o.kind === 'demo' && typeof o.id === 'string') return { kind: 'demo', id: o.id };
-  if (o.kind === 'embedded' && typeof o.dataUrl === 'string' && /^data:image\/(png|jpeg|webp|gif|bmp);base64,/.test(o.dataUrl)) {
-    return { kind: 'embedded', name: typeof o.name === 'string' ? o.name.slice(0, 120) : 'image', dataUrl: o.dataUrl, width: num(o.width, 0, 0, 100000, true), height: num(o.height, 0, 0, 100000, true) };
+  if (o.kind === 'embedded' && typeof o.data === 'string') {
+    const encoding = o.encoding === 'dataurl' ? 'dataurl' : 'rgba-delta-deflate';
+    if (encoding === 'dataurl' && !/^data:image\/(png|jpeg|webp|gif|bmp);base64,/.test(o.data)) return { kind: 'none' };
+    const width = num(o.width, 0, 0, SOURCE_MAX, true);
+    const height = num(o.height, 0, 0, SOURCE_MAX, true);
+    if (encoding === 'rgba-delta-deflate' && (!width || !height)) return { kind: 'none' };
+    const ref: ImageRef = { kind: 'embedded', name: typeof o.name === 'string' ? o.name.slice(0, 120) : 'image', width, height, encoding, data: o.data };
+    if (typeof o.originalW === 'number' && typeof o.originalH === 'number') {
+      ref.originalW = num(o.originalW, width, 1, 1e6, true);
+      ref.originalH = num(o.originalH, height, 1, 1e6, true);
+    }
+    return ref;
   }
   return { kind: 'none' };
 }

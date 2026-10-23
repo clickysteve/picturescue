@@ -104,3 +104,27 @@ export function nearestNote(notes: readonly number[], target: number): number {
   for (const n of notes) if (Math.abs(n - target) < Math.abs(best - target)) best = n;
   return best;
 }
+
+/** Mapping presets: named combinations of the four mapping choices. */
+export interface MappingPreset {
+  id: string;
+  label: string;
+  tip: string;
+  set: Pick<RegionSettings, 'pitchFrom' | 'velFrom' | 'trigger' | 'ccFrom'>;
+}
+
+export const MAPPING_PRESETS: MappingPreset[] = [
+  { id: 'bright-pitch', label: 'BRIGHTNESS → PITCH', tip: 'Light is high, dark is low; saturation is loudness', set: { pitchFrom: 'brightness', velFrom: 'saturation', trigger: 'every', ccFrom: 'off' } },
+  { id: 'hue-pitch', label: 'HUE → PITCH', tip: 'The colour wheel goes round the scale; brightness picks the octave', set: { pitchFrom: 'hue', velFrom: 'saturation', trigger: 'every', ccFrom: 'off' } },
+  { id: 'st-colours', label: 'EACH COLOUR A NOTE', tip: 'The original idea: each of the 16 ST colours plays its own note', set: { pitchFrom: 'colour', velFrom: 'fixed', trigger: 'every', ccFrom: 'off' } },
+  { id: 'edges-rhythm', label: 'EDGES → RHYTHM', tip: 'Notes where the picture has edges; edge strength is loudness', set: { pitchFrom: 'brightness', velFrom: 'edges', trigger: 'edges', ccFrom: 'off' } },
+  { id: 'colour-changes', label: 'COLOUR CHANGES → NOTES', tip: 'A note whenever the colour changes noticeably', set: { pitchFrom: 'hue', velFrom: 'edges', trigger: 'change', ccFrom: 'off' } },
+  { id: 'detail-density', label: 'DETAIL → DENSITY', tip: 'Busy areas play often, plain areas rarely', set: { pitchFrom: 'brightness', velFrom: 'edges', trigger: 'detail', ccFrom: 'off' } },
+  { id: 'bright-velocity', label: 'BRIGHTNESS → VELOCITY', tip: 'The ST colour chooses the note, brightness how hard it is played', set: { pitchFrom: 'colour', velFrom: 'brightness', trigger: 'every', ccFrom: 'off' } },
+  { id: 'hue-cc', label: 'HUE → CC', tip: 'Brightness plays the notes while hue sweeps a controller (cutoff, CC 74)', set: { pitchFrom: 'brightness', velFrom: 'saturation', trigger: 'every', ccFrom: 'hue' } },
+];
+
+/** The preset a region's mapping matches, if any. */
+export function matchingPreset(r: RegionSettings): string {
+  return MAPPING_PRESETS.find((m) => m.set.pitchFrom === r.pitchFrom && m.set.velFrom === r.velFrom && m.set.trigger === r.trigger && m.set.ccFrom === r.ccFrom)?.id ?? '';
+}

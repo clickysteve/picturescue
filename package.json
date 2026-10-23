@@ -1,0 +1,28 @@
+{
+  "name": "picturescue",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PICTURESCUE: pictures make music. An image-driven generative MIDI instrument inspired by the Atari ST's Picture Music.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "test:browser": "npm run build && node scripts/browser-test.mjs"
+  },
+  "dependencies": {
+    "@fontsource/silkscreen": "^5.3.0",
+    "@fontsource/tiny5": "^5.3.0",
+    "@slopfactory/core": "github:clickysteve/slopfactory-core#f567d817e12f09b5a2b62985524e40378a670fb5"
+  },
+  "devDependencies": {
+    "happy-dom": "^20.14.5",
+    "playwright": "1.56.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "vitest": "^4.1.11"
+  }
+}

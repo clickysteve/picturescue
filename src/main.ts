@@ -11,6 +11,7 @@ import { FACTORY } from './engine/factory';
 import { LAYOUT_LABEL, LAYOUTS, clampRect } from './engine/regions';
 import { ANALYSIS_SIZES } from './engine/types';
 import { App } from './app/app';
+import { PreviewInstrument } from './audio/synth';
 import { ACCEPT } from './app/picture';
 import { PATCH_EXT, patchFileName } from './persistence/patchfile';
 import { chooseFile, download, el, view } from './ui/dom';
@@ -53,6 +54,7 @@ installTooltips(screen);
 // ------------------------------------------------------------------ the application
 const app = new App();
 (window as unknown as { picturescue: unknown }).picturescue = app; // for debugging and automation
+(window as unknown as { picturescueSynth: unknown }).picturescueSynth = PreviewInstrument; // for automation (sound checks)
 
 const desk = el('div', '', screen, [0, 0, W, H]);
 desk.style.position = 'absolute';

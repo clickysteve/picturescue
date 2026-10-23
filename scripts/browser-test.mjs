@@ -208,6 +208,27 @@ try {
   const chans = new Set(ons.map((x) => (x.d[0] & 15) + 1));
   const expectCh = await app(() => window.picturescue.patch.regions.filter((r) => r.enabled && !r.mute).map((r) => r.channel));
   check('MIDI notes arrive on the regions’ channels', ons.length > 5 && [...chans].every((c) => expectCh.includes(c)), `${ons.length} notes on ${[...chans]}`);
+  check('the internal audio preview is running', await app(() => window.picturescue.audio.running));
+  const levels = await page.evaluate(async () => {
+    const out = {};
+    for (const sound of ['sine', 'pluck', 'pad', 'perc', 'bell']) {
+      const ctx = new OfflineAudioContext(1, 44100 * 3, 44100);
+      const inst = new window.picturescueSynth(sound);
+      const h = inst.start(ctx, ctx.destination, { time: 0.05, pitch: 60, velocity: 110 });
+      h.release(0.6);
+      const buf = await ctx.startRendering();
+      const d = buf.getChannelData(0);
+      let peak = 0;
+      let tail = 0;
+      for (let i = 0; i < d.length; i++) {
+        peak = Math.max(peak, Math.abs(d[i]));
+        if (i > d.length - 4410) tail = Math.max(tail, Math.abs(d[i]));
+      }
+      out[sound] = [Math.round(peak * 1000) / 1000, tail];
+    }
+    return out;
+  });
+  check('every preview sound makes sound and dies away after its release', Object.values(levels).every(([peak, tail]) => peak > 0.02 && peak < 1 && tail < 1e-4), JSON.stringify(levels));
   const posTxt = await page.locator('.mwin[data-win="transport"] .box').first().textContent();
   check('bar . beat is shown', /^\d{4} \. [1-4]$/.test(posTxt.trim()), posTxt);
 

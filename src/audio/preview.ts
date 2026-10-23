@@ -1,7 +1,8 @@
 /**
  * The internal audio preview: an AudioContext (created on the first user gesture, as browsers
  * require), Slop Factory Core's Mixer (one strip per region, master level) and NotePlayer
- * (at most 8 notes per region, oldest stolen), playing the preview sounds.
+ * (at most 8 notes per region, oldest stolen), playing the preview sounds through a gentle
+ * limiter.
  *
  * Times arrive as performance.now() milliseconds from the scheduler and are mapped onto the
  * AudioContext clock. MIDI output and the preview are independent: either can be off.
@@ -35,7 +36,14 @@ export class AudioPreview {
         const C = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         this.ctx = new C({ latencyHint: 'interactive' });
         this.mixer = new Mixer(this.ctx, { voices: VOICES, fxAvailable: false, masterGain: this.volume });
-        this.mixer.output.connect(this.ctx.destination);
+        // a gentle limiter: four regions of chords never clip harshly
+        const limit = this.ctx.createDynamicsCompressor();
+        limit.threshold.value = -8;
+        limit.knee.value = 6;
+        limit.ratio.value = 12;
+        limit.attack.value = 0.003;
+        limit.release.value = 0.25;
+        this.mixer.output.connect(limit).connect(this.ctx.destination);
         this.player = new NotePlayer(this.ctx, this.mixer, (voice) => this.instrument(this.sounds[Number(voice.slice(1))] ?? 'sine'), { maxPerVoice: 8 });
         this.applyLevels();
       }

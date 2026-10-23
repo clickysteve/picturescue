@@ -105,7 +105,7 @@ export function tracksFromEvents(events: PerfEvent[], regions: { name: string; c
       if (e.tick < end) tr.events.push({ tick, kind: 'cc', channel: e.channel, cc: e.cc, value: e.value });
     } else if (e.type === 'on') {
       if (e.tick >= end) continue;
-      for (const m of gate.on(e.id, e.channel, e.note, e.velocity)) {
+      for (const m of gate.on(e.id, e.channel, e.note, e.velocity, tick)) {
         const k = ((m.channel - 1) & 15) * 128 + m.note;
         const target = m.kind === 'off' ? (tracks[lastTrackOf.get(k) ?? e.region] ?? tr) : tr;
         target.events.push({ tick, kind: m.kind, channel: m.channel, note: m.note, velocity: m.velocity });

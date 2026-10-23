@@ -1,0 +1,77 @@
+# Test, build and deploy PICTURESCUE to GitHub Pages (static site; no server).
+# Runs for main or by hand, and checks pull requests into main. A failing type check, unit test or
+# build stops the deploy. Pull requests are only type-checked, tested and built: never deployed.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Deploys queue one after another; a pull request's checks only replace its own older run.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      # Relative asset paths: the same build works at the custom domain and under /picturescue/.
+      - run: npx vite build
+      # The custom domain (picturescue.allmyfriendsaresynths.com) travels with the site.
+      - run: cp CNAME dist/CNAME
+      - if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  # The real-browser test (headless Chromium, a fake MIDI device). It reports, but does not
+  # hold back a deploy: unit tests and the build do that.
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+        env:
+          SHOTS: browser-shots
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-shots
+          path: browser-shots
+          if-no-files-found: ignore
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

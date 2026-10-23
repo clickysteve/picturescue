@@ -24,5 +24,11 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.2",
     "vitest": "^4.1.11"
-  }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/clickysteve/picturescue.git"
+  },
+  "homepage": "https://picturescue.allmyfriendsaresynths.com"
 }

@@ -69,9 +69,9 @@ export class RegionWindow {
     this.ctrls.push(new Btn(b, 32, y0, 30, 15, 'MUTE', { tip: 'Mute this region (M)', on: () => R().mute, onClick: () => ((R().mute = !R().mute), changed()) }));
     this.ctrls.push(new Btn(b, 64, y0, 30, 15, 'SOLO', { tip: 'Hear only the soloed regions (S)', on: () => R().solo, onClick: () => ((R().solo = !R().solo), changed()) }));
     label(b, 100, y0 + 4, 'CH', 'tiny');
-    this.ctrls.push(new Num(b, 112, y0, 24, 15, { tip: 'MIDI channel of this region', min: 1, max: 16, get: () => R().channel, set: (v) => ((R().channel = v), changed()) }));
+    this.ctrls.push(new Num(b, 112, y0, 24, 15, { label: 'CH', tip: 'MIDI channel of this region', min: 1, max: 16, get: () => R().channel, set: (v) => ((R().channel = v), changed()) }));
     label(b, 141, y0 + 4, 'SOUND', 'tiny');
-    this.ctrls.push(new Sel(b, 168, y0, 70, 15, { tip: 'Internal preview sound of this region', items: () => items(SOUNDS, SOUND_LABEL), get: () => R().sound, set: (v) => ((R().sound = v), changed()) }));
+    this.ctrls.push(new Sel(b, 168, y0, 70, 15, { label: 'SOUND', tip: 'Internal preview sound of this region', items: () => items(SOUNDS, SOUND_LABEL), get: () => R().sound, set: (v) => ((R().sound = v), changed()) }));
     label(b, 242, y0 + 4, 'LVL', 'tiny');
     this.ctrls.push(new Num(b, 258, y0, 30, 15, { tip: 'Preview level of this region', min: 0, max: 100, step: 5, get: () => Math.round(R().level * 100), set: (v) => ((R().level = v / 100), changed()) }));
     this.ctrls.push(new Btn(b, 292, y0, 60, 15, 'COPY→ALL', { tip: 'Copy this region’s settings to the other three (their places, channels and switches stay)', onClick: () => app.copyRegionToAll() }));
@@ -90,11 +90,11 @@ export class RegionWindow {
     };
     const sel = <T>(col: number, y: number, name: string, o: ConstructorParameters<typeof Sel<T>>[5], w = CW) => {
       const [x, yy] = at(col, y, name);
-      this.ctrls.push(new Sel<T>(b, x, yy, w, 15, o));
+      this.ctrls.push(new Sel<T>(b, x, yy, w, 15, { label: name, ...o }));
     };
     const num = (col: number, y: number, name: string, o: ConstructorParameters<typeof Num>[5], w = 40) => {
       const [x, yy] = at(col, y, name);
-      this.ctrls.push(new Num(b, x, yy, w, 15, o));
+      this.ctrls.push(new Num(b, x, yy, w, 15, { label: name, ...o }));
     };
 
     // ------------------------------------------------ INTERPRETATION

@@ -1,6 +1,6 @@
 /**
  * Following an external MIDI clock, tempo-following (as emmm does): the tempo is estimated
- * from the spacing of incoming clock pulses (F8, 24 per quarter note) with a trimmed mean, and
+ * from the average spacing of the last two beats of clock pulses (F8, 24 per quarter note), and
  * Start / Continue / Stop (FA / FB / FC) drive the transport. PICTURESCUE's own scheduler keeps
  * running on that tempo, so a missing pulse or jitter never stalls the music. Implements
  * Core's `ClockFollower` contract.
@@ -35,12 +35,8 @@ export class TempoFollower implements ClockFollower {
       this.times.push(time);
       if (this.times.length > 49) this.times.shift();
       if (this.times.length >= 7) {
-        const gaps: number[] = [];
-        for (let i = 1; i < this.times.length; i++) gaps.push(this.times[i]! - this.times[i - 1]!);
-        gaps.sort((a, b) => a - b);
-        const k = Math.floor(gaps.length / 5);
-        const mid = gaps.slice(k, gaps.length - k);
-        const mean = mid.reduce((a, b) => a + b, 0) / mid.length;
+        // the average pulse spacing over the window: unbiased whatever the jitter
+        const mean = (this.times[this.times.length - 1]! - this.times[0]!) / (this.times.length - 1);
         const bpm = Math.round((60000 / (mean * 24)) * 10) / 10;
         if (bpm >= 20 && bpm <= 300 && Math.abs(bpm - this.bpm) >= 0.2) {
           this.bpm = bpm;

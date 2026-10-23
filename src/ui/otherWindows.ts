@@ -29,6 +29,7 @@ export class MidiWindow {
     label(b, 8, 30, 'OUTPUT', 'tiny');
     this.ctrls.push(
       new Sel<string>(b, 60, 26, 272, 15, {
+        label: 'MIDI output',
         tip: 'Where PICTURESCUE sends its notes. Switching ends every sounding note first.',
         items: () => [{ value: '', label: '(none)' }, ...app.midiAccess.outputs().map((p) => ({ value: p.id, label: p.name + (p.connected ? '' : ' (gone)') }))],
         get: () => app.prefs.midiOut,
@@ -42,6 +43,7 @@ export class MidiWindow {
     label(b, 8, 74, 'CLOCK IN', 'tiny');
     this.ctrls.push(
       new Sel<string>(b, 60, 70, 272, 15, {
+        label: 'Clock input',
         tip: 'An input to follow: its MIDI clock sets the tempo and its Start / Stop / Continue drive the transport',
         items: () => [{ value: '', label: '(none)' }, ...app.midiAccess.inputs().map((p) => ({ value: p.id, label: p.name }))],
         get: () => app.prefs.midiIn,

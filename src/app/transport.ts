@@ -131,7 +131,8 @@ export class Transport {
     if (this.state === 'paused') return this.resume();
     this.perf.reset(0);
     this.visual = [];
-    const t = this.now() + 30;
+    // start after anything still queued (a stop's note-offs), so no new note precedes them
+    const t = Math.max(this.now() + 30, this.midi.queuedUntil + 1);
     this.anchorTick = 0;
     this.anchorTime = t;
     this.nextPulse = 0;
@@ -147,9 +148,10 @@ export class Transport {
   stop(): void {
     if (this.state === 'stopped') return;
     this.ticker.stop();
-    const at = this.now();
-    this.send(this.perf.releaseAll(this.perf.now), at);
-    const t = this.midi.releaseAll(at);
+    // every MIDI note ends after anything already queued (notes are sent up to the lookahead
+    // ahead: an off stamped "now" could reach the synthesiser before its own note-on)
+    const t = this.midi.releaseAll(this.now());
+    this.send(this.perf.releaseAll(this.perf.now), t);
     this.midi.realtime(0xfc, t);
     this.audio?.stopAll();
     this.state = 'stopped';
@@ -162,10 +164,9 @@ export class Transport {
   pause(): void {
     if (this.state !== 'playing') return;
     this.ticker.stop();
-    const at = this.now();
-    // nothing after the pause point plays: end the held notes where we are
-    this.send(this.perf.releaseAll(this.perf.now), at);
-    const t = this.midi.releaseAll(at);
+    // end the held notes (after anything already queued, as for stop)
+    const t = this.midi.releaseAll(this.now());
+    this.send(this.perf.releaseAll(this.perf.now), t);
     this.midi.realtime(0xfc, t);
     this.audio?.stopAll();
     this.visual = [];
@@ -175,7 +176,7 @@ export class Transport {
 
   resume(): void {
     if (this.state !== 'paused') return;
-    const t = this.now() + 30;
+    const t = Math.max(this.now() + 30, this.midi.queuedUntil + 1);
     this.anchorTick = this.perf.now;
     this.anchorTime = t;
     this.nextPulse = Math.ceil(this.perf.now / PULSE) * PULSE;
@@ -210,7 +211,8 @@ export class Transport {
       this.perf.reset(this.state === 'paused' ? this.perf.now : 0);
       return;
     }
-    this.send(this.perf.restartScans(), this.now());
+    // the held notes end where rendering has got to: after their own note-ons
+    this.send(this.perf.restartScans(), this.timeOf(this.perf.now));
   }
 
   /** One scheduler wake. */

@@ -119,6 +119,8 @@ export interface NumOpts {
   /** logical px of drag per step (default 3) */
   pxPerStep?: number;
   tip?: string;
+  /** accessible name */
+  label?: string;
   disabled?: () => boolean;
 }
 
@@ -136,6 +138,7 @@ export class Num {
     this.el.setAttribute('aria-valuemin', String(o.min));
     this.el.setAttribute('aria-valuemax', String(o.max));
     if (o.tip) setTip(this.el, o.tip + ' (drag up/down, or click and type, ↑ ↓)');
+    if (o.label) this.el.setAttribute('aria-label', o.label);
     this.el.addEventListener('pointerdown', (ev) => this.down(ev));
     this.el.addEventListener('keydown', (e) => this.key(e));
     this.el.addEventListener('blur', () => this.editing && this.commit());
@@ -277,6 +280,8 @@ export interface SelOpts<T> {
   tip?: string;
   /** a fixed caption instead of the current value (a menu button) */
   caption?: string;
+  /** accessible name */
+  label?: string;
   disabled?: () => boolean;
 }
 
@@ -295,6 +300,7 @@ export class Sel<T> {
     this.textEl = el('span', 'msel-text', this.el);
     el('span', 'msel-arrow', this.el);
     if (o.tip) setTip(this.el, o.tip);
+    this.el.setAttribute('aria-label', o.label ?? o.caption ?? '');
     this.el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -392,7 +398,7 @@ export class Sel<T> {
   update(): void {
     const v = this.o.get();
     const it = this.o.items().find((x) => x.value === v);
-    const t = this.o.caption ?? it?.label ?? '—';
+    const t = this.o.caption ?? it?.label ?? '-';
     if (this.textEl.textContent !== t) this.textEl.textContent = t;
     this.el.classList.toggle('disabled', !!this.o.disabled?.());
   }

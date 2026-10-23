@@ -33,6 +33,11 @@ export class MidiOut {
     return this.port?.name ?? '';
   }
 
+  /** The latest time anything is queued for (a new start must come after it). */
+  get queuedUntil(): number {
+    return this.lastStamp;
+  }
+
   get connected(): boolean {
     return !!this.port;
   }
@@ -52,7 +57,7 @@ export class MidiOut {
 
   noteOn(id: number, channel: number, note: number, velocity: number, time: number): void {
     if (!this.enabled) return;
-    for (const m of this.gate.on(id, channel, note, velocity)) {
+    for (const m of this.gate.on(id, channel, note, velocity, time)) {
       const st = (m.kind === 'on' ? 0x90 : 0x80) | ((m.channel - 1) & 15);
       this.send([st, m.note & 127, m.kind === 'on' ? Math.max(1, m.velocity) : 0], time);
       this.onSend?.({ kind: m.kind, channel: m.channel, a: m.note, b: m.velocity, time });

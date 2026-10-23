@@ -44,9 +44,10 @@ jobs:
           path: dist
 
   # The real-browser test (headless Chromium, a fake MIDI device). It reports, but does not
-  # hold back a deploy: unit tests and the build do that.
+  # hold back a deploy: unit tests and the build do that. Pinned to Ubuntu 24.04, which the
+  # pinned Playwright (1.56) supports; newer runner images are not supported by it.
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
